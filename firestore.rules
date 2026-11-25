@@ -1,0 +1,817 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'djizeerunkx21062002@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.active == true &&
+        get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isProducer() {
+      return isVerifiedUser() &&
+        exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.active == true &&
+        get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'producer';
+    }
+
+    function isLicensingManager() {
+      return isVerifiedUser() &&
+        exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.active == true &&
+        get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'licensing_manager';
+    }
+
+    function isCreator() {
+      return isVerifiedUser() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'creator';
+    }
+
+    function isTeamStaff() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.active == true
+      );
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'countryCode', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'countryCode', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.role in ['admin', 'producer', 'licensing_manager', 'creator', 'client'] &&
+        data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 32 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTeamMember(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'specialty', 'active', 'assignedBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'role', 'specialty', 'active', 'assignedBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+        data.role in ['admin', 'producer', 'licensing_manager', 'viewer'] &&
+        data.specialty is string && data.specialty.size() >= 1 && data.specialty.size() <= 100 &&
+        data.active is bool &&
+        isValidId(data.assignedBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidDropProduct(data) {
+      return data.keys().hasAll(['id', 'title', 'voiceTalent', 'genre', 'vocalStyle', 'bpm', 'durationSec', 'musicalKey', 'tags', 'standardPriceUsd', 'commercialPriceUsd', 'exclusivePriceUsd', 'coverImage', 'audioFileId', 'audioFormat', 'sampleRate', 'featured', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'title', 'voiceTalent', 'genre', 'vocalStyle', 'bpm', 'durationSec', 'musicalKey', 'tags', 'standardPriceUsd', 'commercialPriceUsd', 'exclusivePriceUsd', 'coverImage', 'audioFileId', 'audioFormat', 'sampleRate', 'mediaType', 'originalFileName', 'fileSizeBytes', 'featured', 'archived', 'createdBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+        data.voiceTalent is string && data.voiceTalent.size() >= 2 && data.voiceTalent.size() <= 80 &&
+        data.genre is string && data.genre.size() >= 2 && data.genre.size() <= 40 &&
+        data.vocalStyle is string && data.vocalStyle.size() >= 2 && data.vocalStyle.size() <= 40 &&
+        data.bpm is number && data.bpm >= 0 && data.bpm <= 300 &&
+        data.durationSec is number && data.durationSec >= 0 && data.durationSec <= 7200 &&
+        data.musicalKey is string && data.musicalKey.size() >= 1 && data.musicalKey.size() <= 16 &&
+        data.tags is list && data.tags.size() >= 1 && data.tags.size() <= 10 && data.tags[0] is string &&
+        data.standardPriceUsd is number && data.standardPriceUsd >= 1 &&
+        data.commercialPriceUsd is number && data.commercialPriceUsd >= 1 &&
+        data.exclusivePriceUsd is number && data.exclusivePriceUsd >= 1 &&
+        data.coverImage is string && data.coverImage.size() >= 1 && data.coverImage.size() <= 300 &&
+        data.audioFileId is string && data.audioFileId.size() >= 1 && data.audioFileId.size() <= 128 &&
+        data.audioFormat is string && data.audioFormat.size() >= 2 && data.audioFormat.size() <= 20 &&
+        data.sampleRate is string && data.sampleRate.size() >= 2 && data.sampleRate.size() <= 30 &&
+        (!('mediaType' in data) || data.mediaType in ['audio', 'video', 'image', 'other']) &&
+        (!('originalFileName' in data) || (data.originalFileName is string && data.originalFileName.size() <= 200)) &&
+        (!('fileSizeBytes' in data) || (data.fileSizeBytes is number && data.fileSizeBytes >= 0)) &&
+        data.featured is bool &&
+        (!('archived' in data) || data.archived is bool) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidOrderRecord(data) {
+      return data.keys().hasAll(['id', 'buyerUid', 'buyerEmail', 'buyerName', 'djHandle', 'jurisdictionCode', 'countryName', 'taxType', 'taxRate', 'taxIdProvided', 'reverseChargeApplied', 'currency', 'subtotalUsd', 'taxAmountUsd', 'totalUsd', 'paymentStatus', 'paymentMethod', 'items', 'licenseId', 'downloadToken', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'buyerUid', 'buyerEmail', 'buyerName', 'djHandle', 'jurisdictionCode', 'countryName', 'taxType', 'taxRate', 'taxIdProvided', 'reverseChargeApplied', 'currency', 'subtotalUsd', 'taxAmountUsd', 'totalUsd', 'platformFeeUsd', 'creatorEarningsUsd', 'promoCode', 'discountUsd', 'paymentStatus', 'paymentMethod', 'items', 'licenseId', 'downloadToken', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.buyerUid) &&
+        data.buyerEmail is string && data.buyerEmail.size() >= 3 && data.buyerEmail.size() <= 160 &&
+        data.buyerName is string && data.buyerName.size() >= 1 && data.buyerName.size() <= 120 &&
+        data.djHandle is string && data.djHandle.size() >= 1 && data.djHandle.size() <= 80 &&
+        data.jurisdictionCode is string && data.jurisdictionCode.size() >= 2 && data.jurisdictionCode.size() <= 32 &&
+        data.countryName is string && data.countryName.size() >= 2 && data.countryName.size() <= 100 &&
+        data.taxType is string && data.taxType.size() >= 2 && data.taxType.size() <= 40 &&
+        data.taxRate is number && data.taxRate >= 0 && data.taxRate <= 1 &&
+        data.taxIdProvided is string && data.taxIdProvided.size() <= 64 &&
+        data.reverseChargeApplied is bool &&
+        data.currency is string && data.currency.size() >= 3 && data.currency.size() <= 8 &&
+        data.subtotalUsd is number && data.subtotalUsd >= 0 &&
+        data.taxAmountUsd is number && data.taxAmountUsd >= 0 &&
+        data.totalUsd is number && data.totalUsd >= 0 &&
+        (!('platformFeeUsd' in data) || (data.platformFeeUsd is number && data.platformFeeUsd >= 0)) &&
+        (!('creatorEarningsUsd' in data) || (data.creatorEarningsUsd is number && data.creatorEarningsUsd >= 0)) &&
+        (!('promoCode' in data) || (data.promoCode is string && data.promoCode.size() <= 32)) &&
+        (!('discountUsd' in data) || (data.discountUsd is number && data.discountUsd >= 0)) &&
+        data.paymentStatus in ['authorized_pending_payout', 'paid', 'invoice_issued', 'refunded'] &&
+        data.paymentMethod is string && data.paymentMethod.size() >= 2 && data.paymentMethod.size() <= 40 &&
+        data.items is list && data.items.size() >= 1 && data.items.size() <= 20 && data.items[0] is map &&
+        isValidId(data.licenseId) &&
+        data.downloadToken is string && data.downloadToken.size() >= 8 && data.downloadToken.size() <= 256 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidLicenseAgreement(data) {
+      return data.keys().hasAll(['id', 'orderId', 'ownerUid', 'licenseeName', 'licenseeEmail', 'djName', 'dropTitle', 'tier', 'territory', 'jurisdictionCode', 'serialNumber', 'rightsSummary', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'orderId', 'ownerUid', 'licenseeName', 'licenseeEmail', 'djName', 'dropTitle', 'tier', 'territory', 'jurisdictionCode', 'serialNumber', 'rightsSummary', 'status', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.orderId) &&
+        isValidId(data.ownerUid) &&
+        data.licenseeName is string && data.licenseeName.size() >= 1 && data.licenseeName.size() <= 120 &&
+        data.licenseeEmail is string && data.licenseeEmail.size() >= 3 && data.licenseeEmail.size() <= 160 &&
+        data.djName is string && data.djName.size() >= 1 && data.djName.size() <= 80 &&
+        data.dropTitle is string && data.dropTitle.size() >= 2 && data.dropTitle.size() <= 120 &&
+        data.tier in ['standard', 'commercial', 'exclusive'] &&
+        data.territory is string && data.territory.size() >= 2 && data.territory.size() <= 120 &&
+        data.jurisdictionCode is string && data.jurisdictionCode.size() >= 2 && data.jurisdictionCode.size() <= 32 &&
+        data.serialNumber is string && data.serialNumber.size() >= 6 && data.serialNumber.size() <= 64 &&
+        data.rightsSummary is string && data.rightsSummary.size() >= 10 && data.rightsSummary.size() <= 1000 &&
+        data.status in ['active', 'revoked'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCustomDropRequest(data) {
+      return data.keys().hasAll(['id', 'clientUid', 'clientName', 'clientEmail', 'djName', 'scriptText', 'vocalStyle', 'genre', 'bpmTarget', 'countryCode', 'licenseTier', 'milestone', 'assignedProducerUid', 'assignedProducerName', 'deliverableFileId', 'notes', 'quotedPriceUsd', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'clientUid', 'clientName', 'clientEmail', 'djName', 'scriptText', 'vocalStyle', 'genre', 'bpmTarget', 'countryCode', 'licenseTier', 'milestone', 'assignedProducerUid', 'assignedProducerName', 'deliverableFileId', 'notes', 'quotedPriceUsd', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.clientUid) &&
+        data.clientName is string && data.clientName.size() >= 1 && data.clientName.size() <= 120 &&
+        data.clientEmail is string && data.clientEmail.size() >= 3 && data.clientEmail.size() <= 160 &&
+        data.djName is string && data.djName.size() >= 1 && data.djName.size() <= 80 &&
+        data.scriptText is string && data.scriptText.size() >= 4 && data.scriptText.size() <= 1500 &&
+        data.vocalStyle is string && data.vocalStyle.size() >= 2 && data.vocalStyle.size() <= 60 &&
+        data.genre is string && data.genre.size() >= 2 && data.genre.size() <= 40 &&
+        data.bpmTarget is number && data.bpmTarget >= 40 && data.bpmTarget <= 220 &&
+        data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 32 &&
+        data.licenseTier in ['standard', 'commercial', 'exclusive'] &&
+        data.milestone in ['Submitted', 'Script Approved', 'Voicing & FX', 'Mastering', 'Delivered'] &&
+        data.assignedProducerUid is string && data.assignedProducerUid.size() <= 128 &&
+        data.assignedProducerName is string && data.assignedProducerName.size() <= 100 &&
+        data.deliverableFileId is string && data.deliverableFileId.size() <= 128 &&
+        data.notes is string && data.notes.size() <= 1000 &&
+        data.quotedPriceUsd is number && data.quotedPriceUsd >= 0 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAudioAsset(data) {
+      return data.keys().hasAll(['id', 'fileName', 'originalName', 'mimeType', 'sizeBytes', 'format', 'sampleRate', 'bitDepth', 'durationSec', 'uploadedByUid', 'uploadedByName', 'linkedDropId', 'linkedRequestId', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'fileName', 'originalName', 'mimeType', 'sizeBytes', 'format', 'mediaType', 'sampleRate', 'bitDepth', 'durationSec', 'uploadedByUid', 'uploadedByName', 'linkedDropId', 'linkedRequestId', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 200 &&
+        data.originalName is string && data.originalName.size() >= 1 && data.originalName.size() <= 200 &&
+        data.mimeType is string && data.mimeType.size() >= 3 && data.mimeType.size() <= 80 &&
+        data.sizeBytes is number && data.sizeBytes > 0 &&
+        data.format is string && data.format.size() >= 2 && data.format.size() <= 20 &&
+        (!('mediaType' in data) || data.mediaType in ['audio', 'video', 'image', 'other']) &&
+        data.sampleRate is string && data.sampleRate.size() >= 2 && data.sampleRate.size() <= 30 &&
+        data.bitDepth is string && data.bitDepth.size() >= 2 && data.bitDepth.size() <= 20 &&
+        data.durationSec is number && data.durationSec >= 0 &&
+        isValidId(data.uploadedByUid) &&
+        data.uploadedByName is string && data.uploadedByName.size() >= 1 && data.uploadedByName.size() <= 100 &&
+        data.linkedDropId is string && data.linkedDropId.size() <= 128 &&
+        data.linkedRequestId is string && data.linkedRequestId.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidEmailLog(data) {
+      return data.keys().hasAll(['id', 'ownerUid', 'recipientEmail', 'subject', 'milestone', 'relatedRequestId', 'relatedOrderId', 'deliveryStatus', 'previewBody', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'ownerUid', 'recipientEmail', 'subject', 'milestone', 'relatedRequestId', 'relatedOrderId', 'deliveryStatus', 'previewBody', 'createdAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.ownerUid) &&
+        data.recipientEmail is string && data.recipientEmail.size() >= 3 && data.recipientEmail.size() <= 160 &&
+        data.subject is string && data.subject.size() >= 2 && data.subject.size() <= 200 &&
+        data.milestone is string && data.milestone.size() >= 2 && data.milestone.size() <= 60 &&
+        data.relatedRequestId is string && data.relatedRequestId.size() <= 128 &&
+        data.relatedOrderId is string && data.relatedOrderId.size() <= 128 &&
+        data.deliveryStatus in ['sent_smtp', 'logged_sandbox'] &&
+        data.previewBody is string && data.previewBody.size() >= 2 && data.previewBody.size() <= 1000 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidStudioSettings(data) {
+      return data.keys().hasAll(['payoutStatus', 'gatewayProvider', 'merchantAccountLabel', 'payoutCurrency', 'settlementEmail', 'whatsappSupport', 'autoTaxCompliance', 'autoMilestoneEmails', 'updatedBy', 'updatedAt']) &&
+        data.keys().hasOnly(['payoutStatus', 'gatewayProvider', 'adminPayoutMethod', 'merchantAccountLabel', 'payoutCurrency', 'settlementEmail', 'whatsappSupport', 'autoTaxCompliance', 'autoMilestoneEmails', 'payoutEmailAlerts', 'updatedBy', 'updatedAt']) &&
+        data.payoutStatus in ['pending_setup', 'connected'] &&
+        data.gatewayProvider in ['deferred_payout', 'bank_transfer', 'mobile_money', 'stripe', 'flutterwave', 'paypal', 'mtn_momo'] &&
+        (!('adminPayoutMethod' in data) || data.adminPayoutMethod in ['bank', 'mobile_money']) &&
+        data.merchantAccountLabel is string && data.merchantAccountLabel.size() <= 120 &&
+        data.payoutCurrency is string && data.payoutCurrency.size() >= 3 && data.payoutCurrency.size() <= 8 &&
+        data.settlementEmail is string && data.settlementEmail.size() >= 3 && data.settlementEmail.size() <= 160 &&
+        data.whatsappSupport is string && data.whatsappSupport.size() >= 5 && data.whatsappSupport.size() <= 32 &&
+        data.autoTaxCompliance is bool &&
+        data.autoMilestoneEmails is bool &&
+        (!('payoutEmailAlerts' in data) || data.payoutEmailAlerts is bool) &&
+        isValidId(data.updatedBy) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPublicConfig(data) {
+      return data.keys().hasAll(['payoutStatus', 'gatewayModeLabel', 'autoTaxCompliance', 'updatedAt']) &&
+        data.keys().hasOnly(['payoutStatus', 'gatewayModeLabel', 'autoTaxCompliance', 'announcementEnabled', 'announcementBadge', 'announcementText', 'heroHeadline', 'heroSubheadline', 'customRequestsEnabled', 'defaultCustomPriceUsd', 'maintenanceMode', 'maintenanceMessage', 'updatedAt']) &&
+        data.payoutStatus in ['pending_setup', 'connected'] &&
+        data.gatewayModeLabel is string && data.gatewayModeLabel.size() >= 2 && data.gatewayModeLabel.size() <= 80 &&
+        data.autoTaxCompliance is bool &&
+        (!('announcementEnabled' in data) || data.announcementEnabled is bool) &&
+        (!('announcementBadge' in data) || (data.announcementBadge is string && data.announcementBadge.size() <= 32)) &&
+        (!('announcementText' in data) || (data.announcementText is string && data.announcementText.size() <= 200)) &&
+        (!('heroHeadline' in data) || (data.heroHeadline is string && data.heroHeadline.size() <= 120)) &&
+        (!('heroSubheadline' in data) || (data.heroSubheadline is string && data.heroSubheadline.size() <= 300)) &&
+        (!('customRequestsEnabled' in data) || data.customRequestsEnabled is bool) &&
+        (!('defaultCustomPriceUsd' in data) || (data.defaultCustomPriceUsd is number && data.defaultCustomPriceUsd >= 1 && data.defaultCustomPriceUsd <= 5000)) &&
+        (!('maintenanceMode' in data) || data.maintenanceMode is bool) &&
+        (!('maintenanceMessage' in data) || (data.maintenanceMessage is string && data.maintenanceMessage.size() <= 200)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPayoutRequest(data) {
+      return data.keys().hasAll(['id', 'producerUid', 'producerName', 'producerEmail', 'amountUsd', 'regionSummary', 'payoutMethod', 'destinationAccount', 'currency', 'status', 'notes', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'producerUid', 'producerName', 'producerEmail', 'amountUsd', 'withdrawalFeeRate', 'withdrawalFeeUsd', 'netPayoutUsd', 'countryCode', 'regionSummary', 'payoutMethod', 'destinationAccount', 'currency', 'status', 'notes', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.producerUid) &&
+        data.producerName is string && data.producerName.size() >= 1 && data.producerName.size() <= 100 &&
+        data.producerEmail is string && data.producerEmail.size() >= 3 && data.producerEmail.size() <= 160 &&
+        data.amountUsd is number && data.amountUsd > 0 &&
+        (!('withdrawalFeeRate' in data) || (data.withdrawalFeeRate is number && data.withdrawalFeeRate >= 0 && data.withdrawalFeeRate <= 0.5)) &&
+        (!('withdrawalFeeUsd' in data) || (data.withdrawalFeeUsd is number && data.withdrawalFeeUsd >= 0)) &&
+        (!('netPayoutUsd' in data) || (data.netPayoutUsd is number && data.netPayoutUsd >= 0)) &&
+        (!('countryCode' in data) || (data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 32)) &&
+        data.regionSummary is string && data.regionSummary.size() >= 2 && data.regionSummary.size() <= 200 &&
+        data.payoutMethod is string && data.payoutMethod.size() >= 2 && data.payoutMethod.size() <= 40 && data.payoutMethod.matches('^[a-z0-9_\\-]+$') &&
+        data.destinationAccount is string && data.destinationAccount.size() >= 2 && data.destinationAccount.size() <= 160 &&
+        data.currency is string && data.currency.size() >= 3 && data.currency.size() <= 8 &&
+        data.status in ['Requested', 'Processing', 'Settled', 'Rejected'] &&
+        data.notes is string && data.notes.size() <= 500 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidMilestoneEntry(entry) {
+      return entry is map &&
+        entry.keys().hasAll(['subject', 'body']) &&
+        entry.keys().hasOnly(['subject', 'body']) &&
+        entry.subject is string && entry.subject.size() >= 2 && entry.subject.size() <= 200 &&
+        entry.body is string && entry.body.size() >= 4 && entry.body.size() <= 1500;
+    }
+
+    function isValidEmailTemplateConfig(data) {
+      return data.keys().hasAll(['id', 'brandName', 'brandTagline', 'accentColor', 'senderName', 'replyToEmail', 'logoUrl', 'footerText', 'milestoneTemplates', 'updatedBy', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'brandName', 'brandTagline', 'accentColor', 'senderName', 'replyToEmail', 'logoUrl', 'footerText', 'milestoneTemplates', 'updatedBy', 'updatedAt']) &&
+        isValidId(data.id) &&
+        data.brandName is string && data.brandName.size() >= 1 && data.brandName.size() <= 80 &&
+        data.brandTagline is string && data.brandTagline.size() <= 120 &&
+        data.accentColor is string && data.accentColor.matches('^#[0-9a-fA-F]{6}$') &&
+        data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+        data.replyToEmail is string && data.replyToEmail.size() >= 3 && data.replyToEmail.size() <= 160 &&
+        data.logoUrl is string && data.logoUrl.size() <= 300 &&
+        data.footerText is string && data.footerText.size() <= 400 &&
+        data.milestoneTemplates is map &&
+        data.milestoneTemplates.keys().hasAll(['Submitted', 'Script Approved', 'Voicing & FX', 'Mastering', 'Delivered']) &&
+        data.milestoneTemplates.keys().hasOnly(['Submitted', 'Script Approved', 'Voicing & FX', 'Mastering', 'Delivered']) &&
+        isValidMilestoneEntry(data.milestoneTemplates['Submitted']) &&
+        isValidMilestoneEntry(data.milestoneTemplates['Script Approved']) &&
+        isValidMilestoneEntry(data.milestoneTemplates['Voicing & FX']) &&
+        isValidMilestoneEntry(data.milestoneTemplates['Mastering']) &&
+        isValidMilestoneEntry(data.milestoneTemplates['Delivered']) &&
+        isValidId(data.updatedBy) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidProductReview(data) {
+      return data.keys().hasAll(['id', 'dropId', 'dropTitle', 'authorUid', 'authorName', 'djHandle', 'rating', 'title', 'comment', 'verifiedBuyer', 'orderId', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'dropId', 'dropTitle', 'authorUid', 'authorName', 'djHandle', 'rating', 'title', 'comment', 'verifiedBuyer', 'orderId', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.dropId) &&
+        data.dropTitle is string && data.dropTitle.size() >= 2 && data.dropTitle.size() <= 120 &&
+        isValidId(data.authorUid) &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 80 &&
+        data.djHandle is string && data.djHandle.size() >= 1 && data.djHandle.size() <= 80 &&
+        data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+        data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+        data.comment is string && data.comment.size() >= 5 && data.comment.size() <= 1000 &&
+        data.verifiedBuyer is bool &&
+        data.orderId is string && data.orderId.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCreatorProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'studioHandle', 'countryCode', 'countryName', 'specialty', 'bio', 'active', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'displayName', 'studioHandle', 'countryCode', 'countryName', 'specialty', 'bio', 'active', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 100 &&
+        data.studioHandle is string && data.studioHandle.size() >= 2 && data.studioHandle.size() <= 60 &&
+        data.countryCode is string && data.countryCode.size() >= 2 && data.countryCode.size() <= 32 &&
+        data.countryName is string && data.countryName.size() >= 2 && data.countryName.size() <= 100 &&
+        data.specialty is string && data.specialty.size() >= 2 && data.specialty.size() <= 120 &&
+        data.bio is string && data.bio.size() <= 400 &&
+        data.active is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCreatorSale(data) {
+      return data.keys().hasAll(['id', 'orderId', 'buyerUid', 'dropId', 'dropTitle', 'creatorUid', 'tier', 'jurisdictionCode', 'countryName', 'currency', 'grossItemUsd', 'platformFeeRate', 'adminFeeUsd', 'creatorNetUsd', 'paymentStatus', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'orderId', 'buyerUid', 'dropId', 'dropTitle', 'creatorUid', 'tier', 'jurisdictionCode', 'countryName', 'currency', 'grossItemUsd', 'platformFeeRate', 'adminFeeUsd', 'creatorNetUsd', 'paymentStatus', 'createdAt', 'updatedAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.orderId) &&
+        isValidId(data.buyerUid) &&
+        isValidId(data.dropId) &&
+        data.dropTitle is string && data.dropTitle.size() >= 2 && data.dropTitle.size() <= 120 &&
+        isValidId(data.creatorUid) &&
+        data.tier in ['standard', 'commercial', 'exclusive'] &&
+        data.jurisdictionCode is string && data.jurisdictionCode.size() >= 2 && data.jurisdictionCode.size() <= 32 &&
+        data.countryName is string && data.countryName.size() >= 2 && data.countryName.size() <= 100 &&
+        data.currency is string && data.currency.size() >= 3 && data.currency.size() <= 8 &&
+        data.grossItemUsd is number && data.grossItemUsd > 0 &&
+        data.platformFeeRate is number && data.platformFeeRate >= 0.05 && data.platformFeeRate <= 0.5 &&
+        data.adminFeeUsd is number && data.adminFeeUsd >= 0 &&
+        data.creatorNetUsd is number && data.creatorNetUsd >= 0 &&
+        data.paymentStatus in ['authorized_pending_payout', 'paid', 'invoice_issued'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPromoCode(data) {
+      return data.keys().hasAll(['id', 'code', 'discountPercent', 'minSubtotalUsd', 'description', 'active', 'usageCount', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'code', 'discountPercent', 'minSubtotalUsd', 'description', 'active', 'usageCount', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.id is string && data.id.size() >= 2 && data.id.size() <= 32 && data.id.matches('^[A-Z0-9_\\-]+$') &&
+        data.code is string && data.code == data.id &&
+        data.discountPercent is number && data.discountPercent >= 1 && data.discountPercent <= 90 &&
+        data.minSubtotalUsd is number && data.minSubtotalUsd >= 0 && data.minSubtotalUsd <= 10000 &&
+        data.description is string && data.description.size() <= 140 &&
+        data.active is bool &&
+        data.usageCount is number && data.usageCount >= 0 &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminActivityLog(data) {
+      return data.keys().hasAll(['id', 'actorUid', 'actorEmail', 'action', 'targetId', 'details', 'createdAt']) &&
+        data.keys().hasOnly(['id', 'actorUid', 'actorEmail', 'action', 'targetId', 'details', 'createdAt']) &&
+        isValidId(data.id) &&
+        isValidId(data.actorUid) &&
+        data.actorEmail is string && data.actorEmail.size() >= 3 && data.actorEmail.size() <= 160 &&
+        data.action is string && data.action.size() >= 2 && data.action.size() <= 80 &&
+        data.targetId is string && data.targetId.size() <= 128 &&
+        data.details is string && data.details.size() >= 2 && data.details.size() <= 300 &&
+        data.createdAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    // 1. Users (PII isolated)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(userId) &&
+        isVerifiedUser() &&
+        isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (incoming().role in ['client', 'creator'] || isBootstrappedAdmin());
+      allow update: if isValidId(userId) &&
+        isVerifiedUser() &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            (incoming().role == existing().role || (existing().role == 'client' && incoming().role == 'creator')) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'countryCode', 'role', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // 2. Team Members (RBAC roster)
+    match /teamMembers/{memberId} {
+      allow get: if isValidId(memberId) && (isOwner(memberId) || isAdmin() || isTeamStaff());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(memberId) &&
+        isAdmin() &&
+        isValidTeamMember(incoming()) &&
+        incoming().uid == memberId &&
+        incoming().assignedBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(memberId) &&
+        isAdmin() &&
+        isValidTeamMember(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'specialty', 'active', 'assignedBy', 'updatedAt']);
+      allow delete: if isValidId(memberId) && isAdmin();
+    }
+
+    // 3. Catalog Drops (Public discovery, team & co-creator writes)
+    match /drops/{dropId} {
+      allow get: if isValidId(dropId);
+      allow list: if true;
+      allow create: if isValidId(dropId) &&
+        (isAdmin() || isProducer() || isCreator()) &&
+        isValidDropProduct(incoming()) &&
+        incoming().id == dropId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(dropId) &&
+        (isAdmin() || isProducer() || (isCreator() && existing().createdBy == request.auth.uid)) &&
+        isValidDropProduct(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'voiceTalent', 'genre', 'vocalStyle', 'bpm', 'durationSec', 'musicalKey', 'tags', 'standardPriceUsd', 'commercialPriceUsd', 'exclusivePriceUsd', 'coverImage', 'audioFileId', 'audioFormat', 'sampleRate', 'mediaType', 'originalFileName', 'fileSizeBytes', 'featured', 'archived', 'updatedAt']);
+      allow delete: if isValidId(dropId) && (isAdmin() || (isCreator() && existing().createdBy == request.auth.uid));
+    }
+
+    // 4. Orders (Buyer-owned + admin analytics)
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId) && isSignedIn() && (existing().buyerUid == request.auth.uid || isAdmin() || isTeamStaff());
+      allow list: if isSignedIn() && (resource.data.buyerUid == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(orderId) &&
+        isVerifiedUser() &&
+        isValidOrderRecord(incoming()) &&
+        incoming().id == orderId &&
+        incoming().buyerUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(orderId) &&
+        isAdmin() &&
+        isValidOrderRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().buyerUid == existing().buyerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'updatedAt']);
+      allow delete: if isValidId(orderId) && isAdmin();
+    }
+
+    // 5. Licenses (Buyer-owned + licensing manager)
+    match /licenses/{licenseId} {
+      allow get: if isValidId(licenseId) && isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin() || isTeamStaff());
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(licenseId) &&
+        isVerifiedUser() &&
+        isValidLicenseAgreement(incoming()) &&
+        incoming().id == licenseId &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().status == 'active' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(licenseId) &&
+        (isAdmin() || isLicensingManager()) &&
+        isValidLicenseAgreement(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().orderId == existing().orderId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rightsSummary', 'territory', 'updatedAt']);
+      allow delete: if isValidId(licenseId) && isAdmin();
+    }
+
+    // 6. Custom Requests (Client creation + Producer/Admin milestone pipeline)
+    match /customRequests/{requestId} {
+      allow get: if isValidId(requestId) && isSignedIn() && (existing().clientUid == request.auth.uid || isAdmin() || isTeamStaff());
+      allow list: if isSignedIn() && (
+        resource.data.clientUid == request.auth.uid ||
+        resource.data.assignedProducerUid == request.auth.uid ||
+        isBootstrappedAdmin()
+      );
+      allow create: if isValidId(requestId) &&
+        isVerifiedUser() &&
+        isValidCustomDropRequest(incoming()) &&
+        incoming().id == requestId &&
+        incoming().clientUid == request.auth.uid &&
+        incoming().milestone == 'Submitted' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(requestId) &&
+        isVerifiedUser() &&
+        isValidCustomDropRequest(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().clientUid == existing().clientUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isProducer() &&
+            existing().milestone != 'Delivered' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['milestone', 'assignedProducerUid', 'assignedProducerName', 'deliverableFileId', 'notes', 'quotedPriceUsd', 'updatedAt'])
+          ) ||
+          (
+            existing().clientUid == request.auth.uid &&
+            existing().milestone == 'Submitted' &&
+            incoming().milestone == 'Submitted' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['scriptText', 'notes', 'bpmTarget', 'vocalStyle', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(requestId) && isAdmin();
+    }
+
+    // 7. Audio Assets (Team & co-creator uploads + client preview/deliverables metadata)
+    match /audioAssets/{assetId} {
+      allow get: if isValidId(assetId) && isSignedIn() && (existing().uploadedByUid == request.auth.uid || isAdmin() || isTeamStaff());
+      allow list: if isSignedIn() && (resource.data.uploadedByUid == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(assetId) &&
+        isVerifiedUser() &&
+        (isAdmin() || isProducer() || isCreator()) &&
+        isValidAudioAsset(incoming()) &&
+        incoming().id == assetId &&
+        incoming().uploadedByUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(assetId) &&
+        (isAdmin() || isProducer() || (isCreator() && existing().uploadedByUid == request.auth.uid)) &&
+        isValidAudioAsset(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().uploadedByUid == existing().uploadedByUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['linkedDropId', 'linkedRequestId', 'updatedAt']);
+      allow delete: if isValidId(assetId) && (isAdmin() || (isCreator() && existing().uploadedByUid == request.auth.uid));
+    }
+
+    // 8. Email Logs (Audit trail for milestone & order notifications)
+    match /emailLogs/{logId} {
+      allow get: if isValidId(logId) && isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin() || isTeamStaff());
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(logId) &&
+        isVerifiedUser() &&
+        isValidEmailLog(incoming()) &&
+        incoming().id == logId &&
+        (incoming().ownerUid == request.auth.uid || isAdmin() || isTeamStaff()) &&
+        incoming().createdAt == request.time;
+      allow delete: if isValidId(logId) && isAdmin();
+    }
+
+    // 9. Studio Gateway Settings (Admin only)
+    match /studioSettings/{settingId} {
+      allow get: if isValidId(settingId) && isAdmin();
+      allow list: if isBootstrappedAdmin();
+      allow create: if isValidId(settingId) &&
+        isAdmin() &&
+        isValidStudioSettings(incoming()) &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(settingId) &&
+        isAdmin() &&
+        isValidStudioSettings(incoming()) &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['payoutStatus', 'gatewayProvider', 'adminPayoutMethod', 'merchantAccountLabel', 'payoutCurrency', 'settlementEmail', 'whatsappSupport', 'autoTaxCompliance', 'autoMilestoneEmails', 'payoutEmailAlerts', 'updatedBy', 'updatedAt']);
+    }
+
+    // 10. Public Storefront Config (Non-PII gateway readiness state)
+    match /publicConfig/{configId} {
+      allow get: if isValidId(configId);
+      allow list: if true;
+      allow create, update: if isValidId(configId) &&
+        isAdmin() &&
+        isValidPublicConfig(incoming()) &&
+        incoming().updatedAt == request.time;
+    }
+
+    // 11. Producer & Co-Creator Payout Requests (with 7% admin withdrawal fee on co-creators)
+    match /payoutRequests/{payoutId} {
+      allow get: if isValidId(payoutId) && isSignedIn() && (existing().producerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.producerUid == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(payoutId) &&
+        isVerifiedUser() &&
+        (isAdmin() || isProducer() || isCreator()) &&
+        isValidPayoutRequest(incoming()) &&
+        incoming().id == payoutId &&
+        incoming().producerUid == request.auth.uid &&
+        incoming().status == 'Requested' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          isProducer() ||
+          (isCreator() && incoming().withdrawalFeeRate == 0.07 && incoming().withdrawalFeeUsd >= 0 && incoming().netPayoutUsd >= 0)
+        );
+      allow update: if isValidId(payoutId) &&
+        isAdmin() &&
+        isValidPayoutRequest(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().producerUid == existing().producerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        existing().status != 'Settled' &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payoutMethod', 'notes', 'updatedAt']);
+      allow delete: if isValidId(payoutId) && isAdmin();
+    }
+
+    // 12. Admin Milestone Email Branding & Templates
+    match /emailTemplates/{templateId} {
+      allow get: if isValidId(templateId) && isSignedIn();
+      allow list: if isBootstrappedAdmin();
+      allow create, update: if isValidId(templateId) &&
+        isAdmin() &&
+        isValidEmailTemplateConfig(incoming()) &&
+        incoming().id == templateId &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time;
+      allow delete: if isValidId(templateId) && isAdmin();
+    }
+
+    // 13. Customer Product Reviews (Public read with zero PII, verified-user writes)
+    match /reviews/{reviewId} {
+      allow get: if isValidId(reviewId);
+      allow list: if true;
+      allow create: if isValidId(reviewId) &&
+        isVerifiedUser() &&
+        isValidProductReview(incoming()) &&
+        incoming().id == reviewId &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          (!incoming().verifiedBuyer && incoming().orderId == '') ||
+          (
+            incoming().verifiedBuyer &&
+            isValidId(incoming().orderId) &&
+            exists(/databases/$(database)/documents/orders/$(incoming().orderId)) &&
+            get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.buyerUid == request.auth.uid
+          )
+        );
+      allow update: if isValidId(reviewId) &&
+        isVerifiedUser() &&
+        isValidProductReview(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().dropId == existing().dropId &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            existing().authorUid == request.auth.uid &&
+            incoming().verifiedBuyer == existing().verifiedBuyer &&
+            incoming().orderId == existing().orderId &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['authorName', 'djHandle', 'rating', 'title', 'comment', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(reviewId) &&
+        (isAdmin() || (isVerifiedUser() && existing().authorUid == request.auth.uid));
+    }
+
+    // 14. Public Co-Creator Storefront Profiles (Non-PII)
+    match /creatorProfiles/{creatorId} {
+      allow get: if isValidId(creatorId);
+      allow list: if true;
+      allow create: if isValidId(creatorId) &&
+        isVerifiedUser() &&
+        isOwner(creatorId) &&
+        isValidCreatorProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().active == true &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(creatorId) &&
+        isVerifiedUser() &&
+        isValidCreatorProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isOwner(creatorId) &&
+            incoming().active == existing().active &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'studioHandle', 'countryCode', 'countryName', 'specialty', 'bio', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(creatorId) && isAdmin();
+    }
+
+    // 15. Co-Creator Sales & 5% Admin Platform Commission Ledger (Zero Buyer PII)
+    match /creatorSales/{saleId} {
+      allow get: if isValidId(saleId) && isSignedIn() && (existing().creatorUid == request.auth.uid || existing().buyerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.creatorUid == request.auth.uid || resource.data.buyerUid == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(saleId) &&
+        isVerifiedUser() &&
+        isValidCreatorSale(incoming()) &&
+        incoming().id == saleId &&
+        incoming().buyerUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/orders/$(incoming().orderId)) &&
+        getAfter(/databases/$(database)/documents/orders/$(incoming().orderId)).data.buyerUid == request.auth.uid;
+      allow update: if isValidId(saleId) &&
+        isAdmin() &&
+        isValidCreatorSale(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().orderId == existing().orderId &&
+        incoming().buyerUid == existing().buyerUid &&
+        incoming().creatorUid == existing().creatorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'updatedAt']);
+      allow delete: if isValidId(saleId) && isAdmin();
+    }
+
+    // 16. Admin Promotional Discount Codes (Exact-code get for checkout, Admin-only list & write)
+    match /promoCodes/{codeId} {
+      allow get: if isValidId(codeId);
+      allow list: if isAdmin();
+      allow create: if isValidId(codeId) &&
+        isAdmin() &&
+        isValidPromoCode(incoming()) &&
+        incoming().id == codeId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(codeId) &&
+        isValidPromoCode(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isAdmin() ||
+          (
+            isVerifiedUser() &&
+            existing().active == true &&
+            incoming().usageCount == existing().usageCount + 1 &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['usageCount', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(codeId) && isAdmin();
+    }
+
+    // 17. Admin Audit & Activity Log
+    match /adminLogs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(logId) &&
+        isAdmin() &&
+        isValidAdminActivityLog(incoming()) &&
+        incoming().id == logId &&
+        incoming().actorUid == request.auth.uid &&
+        incoming().createdAt == request.time;
+      allow delete: if isValidId(logId) && isAdmin();
+    }
+  }
+}

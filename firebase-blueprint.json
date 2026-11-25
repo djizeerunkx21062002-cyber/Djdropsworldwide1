@@ -1,0 +1,443 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile with isolated PII and role metadata.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["admin", "producer", "licensing_manager", "creator", "client"] },
+        "countryCode": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "countryCode", "createdAt", "updatedAt"]
+    },
+    "TeamMember": {
+      "title": "TeamMember",
+      "description": "Role-based access control roster for studio team collaboration.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["admin", "producer", "licensing_manager", "viewer"] },
+        "specialty": { "type": "string", "maxLength": 100 },
+        "active": { "type": "boolean" },
+        "assignedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "role", "specialty", "active", "assignedBy", "createdAt", "updatedAt"]
+    },
+    "DropProduct": {
+      "title": "DropProduct",
+      "description": "Catalog DJ drop audio product with multi-tier licensing pricing.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 120 },
+        "voiceTalent": { "type": "string", "maxLength": 80 },
+        "genre": { "type": "string", "maxLength": 40 },
+        "vocalStyle": { "type": "string", "maxLength": 40 },
+        "bpm": { "type": "number" },
+        "durationSec": { "type": "number" },
+        "musicalKey": { "type": "string", "maxLength": 16 },
+        "tags": { "type": "array" },
+        "standardPriceUsd": { "type": "number" },
+        "commercialPriceUsd": { "type": "number" },
+        "exclusivePriceUsd": { "type": "number" },
+        "coverImage": { "type": "string", "maxLength": 300 },
+        "audioFileId": { "type": "string", "maxLength": 128 },
+        "audioFormat": { "type": "string", "maxLength": 20 },
+        "sampleRate": { "type": "string", "maxLength": 30 },
+        "mediaType": { "type": "string", "enum": ["audio", "video", "image", "other"] },
+        "originalFileName": { "type": "string", "maxLength": 200 },
+        "fileSizeBytes": { "type": "number" },
+        "featured": { "type": "boolean" },
+        "archived": { "type": "boolean" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "voiceTalent", "genre", "vocalStyle", "bpm", "durationSec", "musicalKey", "tags", "standardPriceUsd", "commercialPriceUsd", "exclusivePriceUsd", "coverImage", "audioFileId", "audioFormat", "sampleRate", "featured", "createdBy", "createdAt", "updatedAt"]
+    },
+    "OrderRecord": {
+      "title": "OrderRecord",
+      "description": "International DJ drop purchase with tax compliance breakdown and digital delivery token.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "buyerUid": { "type": "string", "maxLength": 128 },
+        "buyerEmail": { "type": "string", "maxLength": 160 },
+        "buyerName": { "type": "string", "maxLength": 120 },
+        "djHandle": { "type": "string", "maxLength": 80 },
+        "jurisdictionCode": { "type": "string", "maxLength": 32 },
+        "countryName": { "type": "string", "maxLength": 100 },
+        "taxType": { "type": "string", "maxLength": 40 },
+        "taxRate": { "type": "number" },
+        "taxIdProvided": { "type": "string", "maxLength": 64 },
+        "reverseChargeApplied": { "type": "boolean" },
+        "currency": { "type": "string", "maxLength": 8 },
+        "subtotalUsd": { "type": "number" },
+        "taxAmountUsd": { "type": "number" },
+        "totalUsd": { "type": "number" },
+        "platformFeeUsd": { "type": "number" },
+        "creatorEarningsUsd": { "type": "number" },
+        "promoCode": { "type": "string", "maxLength": 32 },
+        "discountUsd": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["authorized_pending_payout", "paid", "invoice_issued", "refunded"] },
+        "paymentMethod": { "type": "string", "maxLength": 40 },
+        "items": { "type": "array" },
+        "licenseId": { "type": "string", "maxLength": 128 },
+        "downloadToken": { "type": "string", "maxLength": 256 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "buyerUid", "buyerEmail", "buyerName", "djHandle", "jurisdictionCode", "countryName", "taxType", "taxRate", "taxIdProvided", "reverseChargeApplied", "currency", "subtotalUsd", "taxAmountUsd", "totalUsd", "paymentStatus", "paymentMethod", "items", "licenseId", "downloadToken", "createdAt", "updatedAt"]
+    },
+    "LicenseAgreement": {
+      "title": "LicenseAgreement",
+      "description": "Signed audio licensing certificate bound to an order and international territory.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "licenseeName": { "type": "string", "maxLength": 120 },
+        "licenseeEmail": { "type": "string", "maxLength": 160 },
+        "djName": { "type": "string", "maxLength": 80 },
+        "dropTitle": { "type": "string", "maxLength": 120 },
+        "tier": { "type": "string", "enum": ["standard", "commercial", "exclusive"] },
+        "territory": { "type": "string", "maxLength": 120 },
+        "jurisdictionCode": { "type": "string", "maxLength": 32 },
+        "serialNumber": { "type": "string", "maxLength": 64 },
+        "rightsSummary": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["active", "revoked"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "orderId", "ownerUid", "licenseeName", "licenseeEmail", "djName", "dropTitle", "tier", "territory", "jurisdictionCode", "serialNumber", "rightsSummary", "status", "createdAt", "updatedAt"]
+    },
+    "CustomDropRequest": {
+      "title": "CustomDropRequest",
+      "description": "Custom DJ drop production request with milestone progression and producer assignment.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "clientUid": { "type": "string", "maxLength": 128 },
+        "clientName": { "type": "string", "maxLength": 120 },
+        "clientEmail": { "type": "string", "maxLength": 160 },
+        "djName": { "type": "string", "maxLength": 80 },
+        "scriptText": { "type": "string", "maxLength": 1500 },
+        "vocalStyle": { "type": "string", "maxLength": 60 },
+        "genre": { "type": "string", "maxLength": 40 },
+        "bpmTarget": { "type": "number" },
+        "countryCode": { "type": "string", "maxLength": 32 },
+        "licenseTier": { "type": "string", "enum": ["standard", "commercial", "exclusive"] },
+        "milestone": { "type": "string", "enum": ["Submitted", "Script Approved", "Voicing & FX", "Mastering", "Delivered"] },
+        "assignedProducerUid": { "type": "string", "maxLength": 128 },
+        "assignedProducerName": { "type": "string", "maxLength": 100 },
+        "deliverableFileId": { "type": "string", "maxLength": 128 },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "quotedPriceUsd": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "clientUid", "clientName", "clientEmail", "djName", "scriptText", "vocalStyle", "genre", "bpmTarget", "countryCode", "licenseTier", "milestone", "assignedProducerUid", "assignedProducerName", "deliverableFileId", "notes", "quotedPriceUsd", "createdAt", "updatedAt"]
+    },
+    "AudioAsset": {
+      "title": "AudioAsset",
+      "description": "High-quality studio media asset metadata (audio, video, image, and archive/document packs) stored in cloud storage.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fileName": { "type": "string", "maxLength": 200 },
+        "originalName": { "type": "string", "maxLength": 200 },
+        "mimeType": { "type": "string", "maxLength": 80 },
+        "sizeBytes": { "type": "number" },
+        "format": { "type": "string", "maxLength": 20 },
+        "mediaType": { "type": "string", "enum": ["audio", "video", "image", "other"] },
+        "sampleRate": { "type": "string", "maxLength": 30 },
+        "bitDepth": { "type": "string", "maxLength": 20 },
+        "durationSec": { "type": "number" },
+        "uploadedByUid": { "type": "string", "maxLength": 128 },
+        "uploadedByName": { "type": "string", "maxLength": 100 },
+        "linkedDropId": { "type": "string", "maxLength": 128 },
+        "linkedRequestId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fileName", "originalName", "mimeType", "sizeBytes", "format", "sampleRate", "bitDepth", "durationSec", "uploadedByUid", "uploadedByName", "linkedDropId", "linkedRequestId", "createdAt", "updatedAt"]
+    },
+    "EmailNotificationLog": {
+      "title": "EmailNotificationLog",
+      "description": "Audit log for automated milestone and order confirmation email notifications.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerUid": { "type": "string", "maxLength": 128 },
+        "recipientEmail": { "type": "string", "maxLength": 160 },
+        "subject": { "type": "string", "maxLength": 200 },
+        "milestone": { "type": "string", "maxLength": 60 },
+        "relatedRequestId": { "type": "string", "maxLength": 128 },
+        "relatedOrderId": { "type": "string", "maxLength": 128 },
+        "deliveryStatus": { "type": "string", "enum": ["sent_smtp", "logged_sandbox"] },
+        "previewBody": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerUid", "recipientEmail", "subject", "milestone", "relatedRequestId", "relatedOrderId", "deliveryStatus", "previewBody", "createdAt"]
+    },
+    "StudioGatewaySettings": {
+      "title": "StudioGatewaySettings",
+      "description": "Owner payment payout configuration and automated compliance toggles.",
+      "type": "object",
+      "properties": {
+        "payoutStatus": { "type": "string", "enum": ["pending_setup", "connected"] },
+        "gatewayProvider": { "type": "string", "enum": ["deferred_payout", "bank_transfer", "mobile_money", "stripe", "flutterwave", "paypal", "mtn_momo"] },
+        "adminPayoutMethod": { "type": "string", "enum": ["bank", "mobile_money"] },
+        "merchantAccountLabel": { "type": "string", "maxLength": 120 },
+        "payoutCurrency": { "type": "string", "maxLength": 8 },
+        "settlementEmail": { "type": "string", "maxLength": 160 },
+        "whatsappSupport": { "type": "string", "maxLength": 32 },
+        "autoTaxCompliance": { "type": "boolean" },
+        "autoMilestoneEmails": { "type": "boolean" },
+        "payoutEmailAlerts": { "type": "boolean" },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["payoutStatus", "gatewayProvider", "merchantAccountLabel", "payoutCurrency", "settlementEmail", "whatsappSupport", "autoTaxCompliance", "autoMilestoneEmails", "updatedBy", "updatedAt"]
+    },
+    "PublicStorefrontConfig": {
+      "title": "PublicStorefrontConfig",
+      "description": "Non-PII storefront payment gateway readiness, announcement banner, and hero copy configuration.",
+      "type": "object",
+      "properties": {
+        "payoutStatus": { "type": "string", "enum": ["pending_setup", "connected"] },
+        "gatewayModeLabel": { "type": "string", "maxLength": 80 },
+        "autoTaxCompliance": { "type": "boolean" },
+        "announcementEnabled": { "type": "boolean" },
+        "announcementBadge": { "type": "string", "maxLength": 32 },
+        "announcementText": { "type": "string", "maxLength": 200 },
+        "heroHeadline": { "type": "string", "maxLength": 120 },
+        "heroSubheadline": { "type": "string", "maxLength": 300 },
+        "customRequestsEnabled": { "type": "boolean" },
+        "defaultCustomPriceUsd": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["payoutStatus", "gatewayModeLabel", "autoTaxCompliance", "updatedAt"]
+    },
+    "PayoutRequest": {
+      "title": "PayoutRequest",
+      "description": "Producer payout withdrawal request linked to regional sales earnings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "producerUid": { "type": "string", "maxLength": 128 },
+        "producerName": { "type": "string", "maxLength": 100 },
+        "producerEmail": { "type": "string", "maxLength": 160 },
+        "amountUsd": { "type": "number" },
+        "withdrawalFeeRate": { "type": "number" },
+        "withdrawalFeeUsd": { "type": "number" },
+        "netPayoutUsd": { "type": "number" },
+        "countryCode": { "type": "string", "maxLength": 32 },
+        "regionSummary": { "type": "string", "maxLength": 200 },
+        "payoutMethod": { "type": "string", "maxLength": 40, "pattern": "^[a-z0-9_\\-]+$" },
+        "destinationAccount": { "type": "string", "maxLength": 160 },
+        "currency": { "type": "string", "maxLength": 8 },
+        "status": { "type": "string", "enum": ["Requested", "Processing", "Settled", "Rejected"] },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "producerUid", "producerName", "producerEmail", "amountUsd", "regionSummary", "payoutMethod", "destinationAccount", "currency", "status", "notes", "createdAt", "updatedAt"]
+    },
+    "EmailTemplateConfig": {
+      "title": "EmailTemplateConfig",
+      "description": "Admin-customizable brand identity and automated milestone email copy templates.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "brandName": { "type": "string", "maxLength": 80 },
+        "brandTagline": { "type": "string", "maxLength": 120 },
+        "accentColor": { "type": "string", "maxLength": 7, "pattern": "^#[0-9a-fA-F]{6}$" },
+        "senderName": { "type": "string", "maxLength": 80 },
+        "replyToEmail": { "type": "string", "maxLength": 160 },
+        "logoUrl": { "type": "string", "maxLength": 300 },
+        "footerText": { "type": "string", "maxLength": 400 },
+        "milestoneTemplates": { "type": "object" },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "brandName", "brandTagline", "accentColor", "senderName", "replyToEmail", "logoUrl", "footerText", "milestoneTemplates", "updatedBy", "updatedAt"]
+    },
+    "ProductReview": {
+      "title": "ProductReview",
+      "description": "Customer rating and written review for a catalog DJ drop.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "dropId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "dropTitle": { "type": "string", "maxLength": 120 },
+        "authorUid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorName": { "type": "string", "maxLength": 80 },
+        "djHandle": { "type": "string", "maxLength": 80 },
+        "rating": { "type": "number" },
+        "title": { "type": "string", "maxLength": 120 },
+        "comment": { "type": "string", "maxLength": 1000 },
+        "verifiedBuyer": { "type": "boolean" },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "dropId", "dropTitle", "authorUid", "authorName", "djHandle", "rating", "title", "comment", "verifiedBuyer", "orderId", "createdAt", "updatedAt"]
+    },
+    "CreatorProfile": {
+      "title": "CreatorProfile",
+      "description": "Public non-PII marketplace storefront metadata for co-creators.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "maxLength": 100 },
+        "studioHandle": { "type": "string", "maxLength": 60 },
+        "countryCode": { "type": "string", "maxLength": 32 },
+        "countryName": { "type": "string", "maxLength": 100 },
+        "specialty": { "type": "string", "maxLength": 120 },
+        "bio": { "type": "string", "maxLength": 400 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "studioHandle", "countryCode", "countryName", "specialty", "bio", "active", "createdAt", "updatedAt"]
+    },
+    "CreatorSaleRecord": {
+      "title": "CreatorSaleRecord",
+      "description": "Zero-PII revenue split ledger recording 5% admin commission and 95% creator earnings per sold item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "orderId": { "type": "string", "maxLength": 128 },
+        "buyerUid": { "type": "string", "maxLength": 128 },
+        "dropId": { "type": "string", "maxLength": 128 },
+        "dropTitle": { "type": "string", "maxLength": 120 },
+        "creatorUid": { "type": "string", "maxLength": 128 },
+        "tier": { "type": "string", "enum": ["standard", "commercial", "exclusive"] },
+        "jurisdictionCode": { "type": "string", "maxLength": 32 },
+        "countryName": { "type": "string", "maxLength": 100 },
+        "currency": { "type": "string", "maxLength": 8 },
+        "grossItemUsd": { "type": "number" },
+        "platformFeeRate": { "type": "number" },
+        "adminFeeUsd": { "type": "number" },
+        "creatorNetUsd": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["authorized_pending_payout", "paid", "invoice_issued"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "orderId", "buyerUid", "dropId", "dropTitle", "creatorUid", "tier", "jurisdictionCode", "countryName", "currency", "grossItemUsd", "platformFeeRate", "adminFeeUsd", "creatorNetUsd", "paymentStatus", "createdAt", "updatedAt"]
+    },
+    "PromoCode": {
+      "title": "PromoCode",
+      "description": "Admin-managed promotional discount codes applicable at checkout.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 32, "pattern": "^[A-Z0-9_\\-]+$" },
+        "code": { "type": "string", "maxLength": 32, "pattern": "^[A-Z0-9_\\-]+$" },
+        "discountPercent": { "type": "number" },
+        "minSubtotalUsd": { "type": "number" },
+        "description": { "type": "string", "maxLength": 140 },
+        "active": { "type": "boolean" },
+        "usageCount": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "code", "discountPercent", "minSubtotalUsd", "description", "active", "usageCount", "createdBy", "createdAt", "updatedAt"]
+    },
+    "AdminActivityLog": {
+      "title": "AdminActivityLog",
+      "description": "Audit log of administrative actions across users, promos, orders, and storefront settings.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 160 },
+        "action": { "type": "string", "maxLength": 80 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "actorUid", "actorEmail", "action", "targetId", "details", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profiles isolated by owner UID or studio admin."
+    },
+    "/teamMembers/{memberId}": {
+      "schema": { "$ref": "#/entities/TeamMember" },
+      "description": "RBAC studio team member assignments."
+    },
+    "/drops/{dropId}": {
+      "schema": { "$ref": "#/entities/DropProduct" },
+      "description": "Public storefront catalog of DJ drops."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/OrderRecord" },
+      "description": "Customer orders with international tax compliance and download token."
+    },
+    "/licenses/{licenseId}": {
+      "schema": { "$ref": "#/entities/LicenseAgreement" },
+      "description": "Signed audio licensing agreements."
+    },
+    "/customRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/CustomDropRequest" },
+      "description": "Custom DJ drop requests and production milestones."
+    },
+    "/audioAssets/{assetId}": {
+      "schema": { "$ref": "#/entities/AudioAsset" },
+      "description": "Uploaded master audio file metadata."
+    },
+    "/emailLogs/{logId}": {
+      "schema": { "$ref": "#/entities/EmailNotificationLog" },
+      "description": "Automated milestone and order email receipts."
+    },
+    "/studioSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/StudioGatewaySettings" },
+      "description": "Admin-only payment gateway and payout account settings."
+    },
+    "/publicConfig/{configId}": {
+      "schema": { "$ref": "#/entities/PublicStorefrontConfig" },
+      "description": "Public non-PII gateway readiness indicator."
+    },
+    "/payoutRequests/{payoutId}": {
+      "schema": { "$ref": "#/entities/PayoutRequest" },
+      "description": "Producer payout initiation requests and settlement status."
+    },
+    "/emailTemplates/{templateId}": {
+      "schema": { "$ref": "#/entities/EmailTemplateConfig" },
+      "description": "Admin-customized automated milestone email branding and message templates."
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/ProductReview" },
+      "description": "Public customer reviews and star ratings for catalog DJ drops."
+    },
+    "/creatorProfiles/{creatorId}": {
+      "schema": { "$ref": "#/entities/CreatorProfile" },
+      "description": "Public non-PII creator storefront profiles for marketplace co-creators."
+    },
+    "/creatorSales/{saleId}": {
+      "schema": { "$ref": "#/entities/CreatorSaleRecord" },
+      "description": "Creator sale & 5% admin platform fee ledger without buyer PII."
+    },
+    "/promoCodes/{codeId}": {
+      "schema": { "$ref": "#/entities/PromoCode" },
+      "description": "Admin promotional discount codes for storefront checkout."
+    },
+    "/adminLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AdminActivityLog" },
+      "description": "Admin-only audit log of administrative actions."
+    }
+  }
+}

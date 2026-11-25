@@ -1,0 +1,6 @@
+{
+  "name": "DropVault Audio",
+  "description": "Global DJ drop storefront, custom audio licensing agreements, 500+ jurisdiction tax compliance, digital file delivery, and studio production dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
