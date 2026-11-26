@@ -134,35 +134,42 @@ function resolveSafePathInDir(baseDir: string, fileName: string): string | null 
   return resolved;
 }
 
-const PUBLIC_ASSETS_DIR = path.resolve(process.cwd(), 'public', 'assets', 'aistudio');
+const PUBLIC_AUDIO_DIR = path.resolve(process.cwd(), 'public', 'audio');
 
-const SEED_AUDIO_FILES: Record<string, { fileName: string; downloadName: string }> = {
+const SEED_AUDIO_FILES: Record<string, { subDir: string; fileName: string; downloadName: string }> = {
   'seed-rasco-street-mix-king': {
-    fileName: 'Wigman-drop-by-nivel-2026-11-25-22-44-Dj-Rasco_-The-Street-Mix-King_df090989.mp3',
+    subDir: 'deep-male-voice',
+    fileName: 'dj-rasco-the-street-mix-king.mp3',
     downloadName: 'DJ-Rasco-The-Street-Mix-King-Master.mp3',
   },
   'seed-danningtone-mr-grade': {
-    fileName: 'Wigman-drop-by-nivel-2026-11-25-17-28-Dj-Danningtone-mr-grade-on-the-vibe__1__563d9b39.mp3',
+    subDir: 'deep-male-voice',
+    fileName: 'dj-danningtone-mr-grade-on-the-vibe.mp3',
     downloadName: 'DJ-Danningtone-Mr-Grade-On-The-Vibe-Master.mp3',
   },
   'seed-izee-ranx-worldwide': {
-    fileName: '_Wigman_drop_by_nivel_You_r......tly.._635ce163.mp3',
+    subDir: 'deep-male-voice',
+    fileName: 'dj-izee-ranx-worldwide-drops-promo.mp3',
     downloadName: 'DJ-Izee-Ranx-Worldwide-Drops-Promo-Master.mp3',
   },
   'seed-kizo-signature': {
-    fileName: '_Dj_drops_by_dj_mash_pro___Ment......zzo.__aee4e5fa.mp3',
+    subDir: 'deep-male-voice',
+    fileName: 'dj-kizo-signature-stamp.mp3',
     downloadName: 'DJ-Kizo-Signature-Stamp-Master.mp3',
   },
   'seed-flamezy-follow-clean': {
-    fileName: 'Dj-drops-by-dj-Mash-Pro-Ug-2026-11-24-00-00-_upbeat-promotional-tone_-Follow-Deejay-flamezy__e90d96d6.mp3',
+    subDir: 'female-voice',
+    fileName: 'dj-flamezy-follow-socials-upbeat.mp3',
     downloadName: 'DJ-Flamezy-Follow-Socials-Upbeat-Master.mp3',
   },
   'seed-flamezy-follow-fx': {
-    fileName: 'Dj-drops-by-dj-Mash-Pro-Ug-2026-11-24-00-00-_upbeat-promotional-tone_-Follow-Deejay-flamezy___1__b85b7536.mp3',
+    subDir: 'female-voice',
+    fileName: 'dj-flamezy-follow-socials-club-fx.mp3',
     downloadName: 'DJ-Flamezy-Follow-Socials-Club-FX-Master.mp3',
   },
   'seed-flamezy-party-master': {
-    fileName: 'Dj-drops-by-dj-Mash-Pro-Ug-2026-11-23-23-31-Deejay-flamezy_-the-incredible-party-master_bc011c1e.mp3',
+    subDir: 'female-voice',
+    fileName: 'dj-flamezy-incredible-party-master.mp3',
     downloadName: 'DJ-Flamezy-Incredible-Party-Master.mp3',
   },
 };
@@ -170,7 +177,9 @@ const SEED_AUDIO_FILES: Record<string, { fileName: string; downloadName: string 
 function findSeedAudioFile(assetId: string): { filePath: string; fileName: string } | null {
   const entry = SEED_AUDIO_FILES[assetId];
   if (!entry) return null;
-  const safePath = resolveSafePathInDir(PUBLIC_ASSETS_DIR, entry.fileName);
+  const subFolder = resolveSafePathInDir(PUBLIC_AUDIO_DIR, entry.subDir);
+  if (!subFolder) return null;
+  const safePath = resolveSafePathInDir(subFolder, entry.fileName);
   if (safePath && fs.existsSync(safePath)) {
     return { filePath: safePath, fileName: entry.downloadName };
   }
