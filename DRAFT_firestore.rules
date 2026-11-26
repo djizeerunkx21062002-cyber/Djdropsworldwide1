@@ -39,7 +39,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isBootstrappedAdmin() || (
-        isVerifiedUser() &&
+        isSignedIn() &&
         exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.active == true &&
         get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'admin'
@@ -47,28 +47,28 @@ service cloud.firestore {
     }
 
     function isProducer() {
-      return isVerifiedUser() &&
+      return isSignedIn() &&
         exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.active == true &&
         get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'producer';
     }
 
     function isLicensingManager() {
-      return isVerifiedUser() &&
+      return isSignedIn() &&
         exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.active == true &&
         get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.role == 'licensing_manager';
     }
 
     function isCreator() {
-      return isVerifiedUser() &&
+      return isSignedIn() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'creator';
     }
 
     function isTeamStaff() {
       return isBootstrappedAdmin() || (
-        isVerifiedUser() &&
+        isSignedIn() &&
         exists(/databases/$(database)/documents/teamMembers/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/teamMembers/$(request.auth.uid)).data.active == true
       );
@@ -102,10 +102,11 @@ service cloud.firestore {
 
     function isValidDropProduct(data) {
       return data.keys().hasAll(['id', 'title', 'voiceTalent', 'genre', 'vocalStyle', 'bpm', 'durationSec', 'musicalKey', 'tags', 'standardPriceUsd', 'commercialPriceUsd', 'exclusivePriceUsd', 'coverImage', 'audioFileId', 'audioFormat', 'sampleRate', 'featured', 'createdBy', 'createdAt', 'updatedAt']) &&
-        data.keys().hasOnly(['id', 'title', 'voiceTalent', 'genre', 'vocalStyle', 'bpm', 'durationSec', 'musicalKey', 'tags', 'standardPriceUsd', 'commercialPriceUsd', 'exclusivePriceUsd', 'coverImage', 'audioFileId', 'audioFormat', 'sampleRate', 'mediaType', 'originalFileName', 'fileSizeBytes', 'featured', 'archived', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'title', 'voiceTalent', 'voiceCategory', 'genre', 'vocalStyle', 'bpm', 'durationSec', 'musicalKey', 'tags', 'standardPriceUsd', 'commercialPriceUsd', 'exclusivePriceUsd', 'coverImage', 'audioFileId', 'audioFormat', 'sampleRate', 'mediaType', 'originalFileName', 'fileSizeBytes', 'featured', 'archived', 'createdBy', 'createdAt', 'updatedAt']) &&
         isValidId(data.id) &&
         data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
         data.voiceTalent is string && data.voiceTalent.size() >= 2 && data.voiceTalent.size() <= 80 &&
+        (!('voiceCategory' in data) || data.voiceCategory in ['Deep male voice', 'Female voice']) &&
         data.genre is string && data.genre.size() >= 2 && data.genre.size() <= 40 &&
         data.vocalStyle is string && data.vocalStyle.size() >= 2 && data.vocalStyle.size() <= 40 &&
         data.bpm is number && data.bpm >= 0 && data.bpm <= 300 &&
@@ -131,7 +132,7 @@ service cloud.firestore {
 
     function isValidOrderRecord(data) {
       return data.keys().hasAll(['id', 'buyerUid', 'buyerEmail', 'buyerName', 'djHandle', 'jurisdictionCode', 'countryName', 'taxType', 'taxRate', 'taxIdProvided', 'reverseChargeApplied', 'currency', 'subtotalUsd', 'taxAmountUsd', 'totalUsd', 'paymentStatus', 'paymentMethod', 'items', 'licenseId', 'downloadToken', 'createdAt', 'updatedAt']) &&
-        data.keys().hasOnly(['id', 'buyerUid', 'buyerEmail', 'buyerName', 'djHandle', 'jurisdictionCode', 'countryName', 'taxType', 'taxRate', 'taxIdProvided', 'reverseChargeApplied', 'currency', 'subtotalUsd', 'taxAmountUsd', 'totalUsd', 'platformFeeUsd', 'creatorEarningsUsd', 'promoCode', 'discountUsd', 'paymentStatus', 'paymentMethod', 'items', 'licenseId', 'downloadToken', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'buyerUid', 'buyerEmail', 'buyerName', 'djHandle', 'jurisdictionCode', 'countryName', 'taxType', 'taxRate', 'taxIdProvided', 'reverseChargeApplied', 'currency', 'subtotalUsd', 'taxAmountUsd', 'totalUsd', 'localTotalAmount', 'platformFeeUsd', 'creatorEarningsUsd', 'promoCode', 'discountUsd', 'paymentStatus', 'paymentMethod', 'transactionRef', 'items', 'licenseId', 'downloadToken', 'createdAt', 'updatedAt']) &&
         isValidId(data.id) &&
         isValidId(data.buyerUid) &&
         data.buyerEmail is string && data.buyerEmail.size() >= 3 && data.buyerEmail.size() <= 160 &&
@@ -147,12 +148,14 @@ service cloud.firestore {
         data.subtotalUsd is number && data.subtotalUsd >= 0 &&
         data.taxAmountUsd is number && data.taxAmountUsd >= 0 &&
         data.totalUsd is number && data.totalUsd >= 0 &&
+        (!('localTotalAmount' in data) || (data.localTotalAmount is number && data.localTotalAmount >= 0)) &&
         (!('platformFeeUsd' in data) || (data.platformFeeUsd is number && data.platformFeeUsd >= 0)) &&
         (!('creatorEarningsUsd' in data) || (data.creatorEarningsUsd is number && data.creatorEarningsUsd >= 0)) &&
         (!('promoCode' in data) || (data.promoCode is string && data.promoCode.size() <= 32)) &&
         (!('discountUsd' in data) || (data.discountUsd is number && data.discountUsd >= 0)) &&
         data.paymentStatus in ['authorized_pending_payout', 'paid', 'invoice_issued', 'refunded'] &&
         data.paymentMethod is string && data.paymentMethod.size() >= 2 && data.paymentMethod.size() <= 40 &&
+        (!('transactionRef' in data) || (data.transactionRef is string && data.transactionRef.size() <= 80)) &&
         data.items is list && data.items.size() >= 1 && data.items.size() <= 20 && data.items[0] is map &&
         isValidId(data.licenseId) &&
         data.downloadToken is string && data.downloadToken.size() >= 8 && data.downloadToken.size() <= 256 &&
@@ -417,7 +420,7 @@ service cloud.firestore {
       allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
       allow list: if isBootstrappedAdmin();
       allow create: if isValidId(userId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isOwner(userId) &&
         isValidUserProfile(incoming()) &&
         incoming().uid == request.auth.uid &&
@@ -425,7 +428,7 @@ service cloud.firestore {
         incoming().updatedAt == request.time &&
         (incoming().role in ['client', 'creator'] || isBootstrappedAdmin());
       allow update: if isValidId(userId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidUserProfile(incoming()) &&
         incoming().uid == existing().uid &&
         incoming().createdAt == existing().createdAt &&
@@ -480,7 +483,7 @@ service cloud.firestore {
         incoming().createdBy == existing().createdBy &&
         incoming().createdAt == existing().createdAt &&
         incoming().updatedAt == request.time &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'voiceTalent', 'genre', 'vocalStyle', 'bpm', 'durationSec', 'musicalKey', 'tags', 'standardPriceUsd', 'commercialPriceUsd', 'exclusivePriceUsd', 'coverImage', 'audioFileId', 'audioFormat', 'sampleRate', 'mediaType', 'originalFileName', 'fileSizeBytes', 'featured', 'archived', 'updatedAt']);
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'voiceTalent', 'voiceCategory', 'genre', 'vocalStyle', 'bpm', 'durationSec', 'musicalKey', 'tags', 'standardPriceUsd', 'commercialPriceUsd', 'exclusivePriceUsd', 'coverImage', 'audioFileId', 'audioFormat', 'sampleRate', 'mediaType', 'originalFileName', 'fileSizeBytes', 'featured', 'archived', 'updatedAt']);
       allow delete: if isValidId(dropId) && (isAdmin() || (isCreator() && existing().createdBy == request.auth.uid));
     }
 
@@ -489,7 +492,7 @@ service cloud.firestore {
       allow get: if isValidId(orderId) && isSignedIn() && (existing().buyerUid == request.auth.uid || isAdmin() || isTeamStaff());
       allow list: if isSignedIn() && (resource.data.buyerUid == request.auth.uid || isBootstrappedAdmin());
       allow create: if isValidId(orderId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidOrderRecord(incoming()) &&
         incoming().id == orderId &&
         incoming().buyerUid == request.auth.uid &&
@@ -511,7 +514,7 @@ service cloud.firestore {
       allow get: if isValidId(licenseId) && isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin() || isTeamStaff());
       allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isBootstrappedAdmin());
       allow create: if isValidId(licenseId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidLicenseAgreement(incoming()) &&
         incoming().id == licenseId &&
         incoming().ownerUid == request.auth.uid &&
@@ -539,7 +542,7 @@ service cloud.firestore {
         isBootstrappedAdmin()
       );
       allow create: if isValidId(requestId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidCustomDropRequest(incoming()) &&
         incoming().id == requestId &&
         incoming().clientUid == request.auth.uid &&
@@ -547,7 +550,7 @@ service cloud.firestore {
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
       allow update: if isValidId(requestId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidCustomDropRequest(incoming()) &&
         incoming().id == existing().id &&
         incoming().clientUid == existing().clientUid &&
@@ -575,7 +578,7 @@ service cloud.firestore {
       allow get: if isValidId(assetId) && isSignedIn() && (existing().uploadedByUid == request.auth.uid || isAdmin() || isTeamStaff());
       allow list: if isSignedIn() && (resource.data.uploadedByUid == request.auth.uid || isBootstrappedAdmin());
       allow create: if isValidId(assetId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         (isAdmin() || isProducer() || isCreator()) &&
         isValidAudioAsset(incoming()) &&
         incoming().id == assetId &&
@@ -598,7 +601,7 @@ service cloud.firestore {
       allow get: if isValidId(logId) && isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin() || isTeamStaff());
       allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isBootstrappedAdmin());
       allow create: if isValidId(logId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidEmailLog(incoming()) &&
         incoming().id == logId &&
         (incoming().ownerUid == request.auth.uid || isAdmin() || isTeamStaff()) &&
@@ -638,7 +641,7 @@ service cloud.firestore {
       allow get: if isValidId(payoutId) && isSignedIn() && (existing().producerUid == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (resource.data.producerUid == request.auth.uid || isBootstrappedAdmin());
       allow create: if isValidId(payoutId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         (isAdmin() || isProducer() || isCreator()) &&
         isValidPayoutRequest(incoming()) &&
         incoming().id == payoutId &&
@@ -676,12 +679,12 @@ service cloud.firestore {
       allow delete: if isValidId(templateId) && isAdmin();
     }
 
-    // 13. Customer Product Reviews (Public read with zero PII, verified-user writes)
+    // 13. Customer Product Reviews (Public read with zero PII, signed-in user writes)
     match /reviews/{reviewId} {
       allow get: if isValidId(reviewId);
       allow list: if true;
       allow create: if isValidId(reviewId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidProductReview(incoming()) &&
         incoming().id == reviewId &&
         incoming().authorUid == request.auth.uid &&
@@ -697,7 +700,7 @@ service cloud.firestore {
           )
         );
       allow update: if isValidId(reviewId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidProductReview(incoming()) &&
         incoming().id == existing().id &&
         incoming().dropId == existing().dropId &&
@@ -714,7 +717,7 @@ service cloud.firestore {
           )
         );
       allow delete: if isValidId(reviewId) &&
-        (isAdmin() || (isVerifiedUser() && existing().authorUid == request.auth.uid));
+        (isAdmin() || (isSignedIn() && existing().authorUid == request.auth.uid));
     }
 
     // 14. Public Co-Creator Storefront Profiles (Non-PII)
@@ -722,7 +725,7 @@ service cloud.firestore {
       allow get: if isValidId(creatorId);
       allow list: if true;
       allow create: if isValidId(creatorId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isOwner(creatorId) &&
         isValidCreatorProfile(incoming()) &&
         incoming().uid == request.auth.uid &&
@@ -730,7 +733,7 @@ service cloud.firestore {
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
       allow update: if isValidId(creatorId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidCreatorProfile(incoming()) &&
         incoming().uid == existing().uid &&
         incoming().createdAt == existing().createdAt &&
@@ -751,7 +754,7 @@ service cloud.firestore {
       allow get: if isValidId(saleId) && isSignedIn() && (existing().creatorUid == request.auth.uid || existing().buyerUid == request.auth.uid || isAdmin());
       allow list: if isSignedIn() && (resource.data.creatorUid == request.auth.uid || resource.data.buyerUid == request.auth.uid || isBootstrappedAdmin());
       allow create: if isValidId(saleId) &&
-        isVerifiedUser() &&
+        isSignedIn() &&
         isValidCreatorSale(incoming()) &&
         incoming().id == saleId &&
         incoming().buyerUid == request.auth.uid &&
@@ -775,7 +778,7 @@ service cloud.firestore {
     // 16. Admin Promotional Discount Codes (Exact-code get for checkout, Admin-only list & write)
     match /promoCodes/{codeId} {
       allow get: if isValidId(codeId);
-      allow list: if isAdmin();
+      allow list: if isBootstrappedAdmin();
       allow create: if isValidId(codeId) &&
         isAdmin() &&
         isValidPromoCode(incoming()) &&
@@ -792,7 +795,7 @@ service cloud.firestore {
         (
           isAdmin() ||
           (
-            isVerifiedUser() &&
+            isSignedIn() &&
             existing().active == true &&
             incoming().usageCount == existing().usageCount + 1 &&
             incoming().diff(existing()).affectedKeys().hasOnly(['usageCount', 'updatedAt'])
@@ -804,7 +807,7 @@ service cloud.firestore {
     // 17. Admin Audit & Activity Log
     match /adminLogs/{logId} {
       allow get: if isValidId(logId) && isAdmin();
-      allow list: if isAdmin();
+      allow list: if isBootstrappedAdmin();
       allow create: if isValidId(logId) &&
         isAdmin() &&
         isValidAdminActivityLog(incoming()) &&

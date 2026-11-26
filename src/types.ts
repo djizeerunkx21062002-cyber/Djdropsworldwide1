@@ -1,7 +1,8 @@
 export type UserRole = 'admin' | 'producer' | 'licensing_manager' | 'viewer' | 'creator' | 'client';
-export type ThemeId = 'obsidian' | 'midnight' | 'crimson' | 'emerald' | 'daylight';
+export type ThemeId = 'royal-stage' | 'obsidian' | 'midnight' | 'crimson' | 'emerald' | 'daylight';
 export type LicenseTier = 'standard' | 'commercial' | 'exclusive';
 export type ProductMediaType = 'audio' | 'video' | 'image' | 'other';
+export type VoiceCategory = 'Deep male voice' | 'Female voice';
 export type RequestMilestone =
   | 'Submitted'
   | 'Script Approved'
@@ -25,6 +26,7 @@ export interface DropProduct {
   id: string;
   title: string;
   voiceTalent: string;
+  voiceCategory?: VoiceCategory;
   genre: string;
   vocalStyle: string;
   bpm: number;
@@ -90,12 +92,14 @@ export interface OrderRecord {
   subtotalUsd: number;
   taxAmountUsd: number;
   totalUsd: number;
+  localTotalAmount?: number;
   platformFeeUsd?: number;
   creatorEarningsUsd?: number;
   promoCode?: string;
   discountUsd?: number;
   paymentStatus: 'authorized_pending_payout' | 'paid' | 'invoice_issued' | 'refunded';
   paymentMethod: string;
+  transactionRef?: string;
   items: OrderItemSummary[];
   licenseId: string;
   downloadToken: string;

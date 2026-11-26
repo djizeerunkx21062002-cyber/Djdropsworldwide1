@@ -13,14 +13,14 @@ export const EMAIL_TEMPLATE_TOKENS = [
 
 export const DEFAULT_EMAIL_TEMPLATE_CONFIG: Omit<EmailTemplateConfig, 'updatedBy' | 'updatedAt'> = {
   id: 'default',
-  brandName: 'DropVault Audio',
+  brandName: 'Quality DJ Drops Worldwide 🌐',
   brandTagline: 'Global DJ Drops, Licensing & Mastering Studio',
   accentColor: '#F59E0B',
-  senderName: 'DropVault Audio Studio',
+  senderName: 'Quality DJ Drops Worldwide Studio',
   replyToEmail: 'opioisaac21062002@gmail.com',
   logoUrl: '',
   footerText:
-    'Need revisions or rush delivery? Email opioisaac21062002@gmail.com or WhatsApp +256 784 903 051. Licensed worldwide by DropVault Audio.',
+    'Need revisions or rush delivery? Email opioisaac21062002@gmail.com or WhatsApp +256 784 903 051. Licensed worldwide by Quality DJ Drops Worldwide 🌐.',
   milestoneTemplates: {
     Submitted: {
       subject: '[{{brandName}}] Brief Received: "{{djName}}" ({{requestId}})',
@@ -77,7 +77,7 @@ function interpolateTemplate(
     '{{genre}}': vars.genre || 'Afrobeats',
     '{{bpm}}': String(vars.bpm ?? 112),
     '{{producerName}}': vars.producerName || 'Studio Producer',
-    '{{brandName}}': config.brandName || 'DropVault Audio',
+    '{{brandName}}': config.brandName || 'Quality DJ Drops Worldwide 🌐',
   };
 
   let out = template;
@@ -110,7 +110,7 @@ export function renderMilestoneEmail(
   const safeAccent = /^#[0-9a-fA-F]{6}$/.test(config.accentColor)
     ? config.accentColor
     : '#F59E0B';
-  const safeBrand = escapeHtml(config.brandName || 'DropVault Audio');
+  const safeBrand = escapeHtml(config.brandName || 'Quality DJ Drops Worldwide 🌐');
   const safeTagline = escapeHtml(config.brandTagline || '');
   const safeFooter = escapeHtml(config.footerText || '');
   const safeMilestone = escapeHtml(vars.milestone);

@@ -2,6 +2,31 @@
 
 @layer base {
   :root,
+  [data-theme="royal-stage"] {
+    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --dv-bg: #060919;
+    --dv-bg-translucent: rgba(6, 9, 25, 0.94);
+    --dv-surface: #0D1433;
+    --dv-surface-translucent: rgba(13, 20, 51, 0.96);
+    --dv-elevated: #0A1029;
+    --dv-border: #25337A;
+    --dv-border-subtle: rgba(59, 130, 246, 0.35);
+    --dv-text: #FFFFFF;
+    --dv-text-2: #F1F5FF;
+    --dv-text-3: #DBE4FF;
+    --dv-muted: #A5B4FC;
+    --dv-muted-2: #818CF8;
+    --dv-accent: #FACC15;
+    --dv-accent-hover: #FDE047;
+    --dv-accent-text: #FACC15;
+    --dv-accent-soft: rgba(250, 204, 21, 0.16);
+    --dv-accent-fg: #09090B;
+    --dv-chip-bg: #172154;
+    --dv-chip-hover: #25337A;
+  }
+
   [data-theme="obsidian"] {
     --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
     --font-body: 'DM Sans', system-ui, sans-serif;

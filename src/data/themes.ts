@@ -11,6 +11,13 @@ export interface StudioThemeOption {
 
 export const STUDIO_THEMES: StudioThemeOption[] = [
   {
+    id: 'royal-stage',
+    name: 'Royal Stage Gold',
+    tagline: 'Electric club navy, neon violet & bold gold',
+    canvasSwatch: '#060919',
+    accentSwatch: '#FACC15',
+  },
+  {
     id: 'obsidian',
     name: 'Obsidian Amber',
     tagline: 'Signature dark console & warm gold',
@@ -48,8 +55,8 @@ export const STUDIO_THEMES: StudioThemeOption[] = [
   },
 ];
 
-export const DEFAULT_THEME_ID: ThemeId = 'obsidian';
-export const THEME_STORAGE_KEY = 'dropvault_studio_theme';
+export const DEFAULT_THEME_ID: ThemeId = 'royal-stage';
+export const THEME_STORAGE_KEY = 'dropvault_studio_theme_v2';
 
 export function getStoredThemeId(): ThemeId {
   if (typeof window === 'undefined') return DEFAULT_THEME_ID;

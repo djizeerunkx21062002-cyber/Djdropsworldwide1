@@ -22,6 +22,7 @@ interface ProductReviewsModalProps {
   orders: OrderRecord[];
   user: User | null;
   userRole: UserRole;
+  onRequestSignIn?: () => void;
   onClose: () => void;
 }
 
@@ -55,6 +56,7 @@ export function ProductReviewsModal({
   orders,
   user,
   userRole,
+  onRequestSignIn,
   onClose,
 }: ProductReviewsModalProps) {
   const [rating, setRating] = useState(5);
@@ -134,6 +136,10 @@ export function ProductReviewsModal({
 
     let activeUser = user;
     if (!activeUser) {
+      if (onRequestSignIn) {
+        onRequestSignIn();
+        return;
+      }
       try {
         const cred = await signInWithGoogle();
         activeUser = cred.user;
@@ -192,11 +198,7 @@ export function ProductReviewsModal({
       }
       resetForm();
     } catch (err) {
-      handleFirestoreError(
-        err,
-        editingReviewId ? OperationType.UPDATE : OperationType.CREATE,
-        editingReviewId ? `reviews/${editingReviewId}` : 'reviews'
-      );
+      setErrorMsg(err instanceof Error ? err.message : 'Could not publish review.');
     } finally {
       setSubmitting(false);
     }
@@ -210,7 +212,7 @@ export function ProductReviewsModal({
       if (editingReviewId === reviewId) resetForm();
       setNotice('Review removed.');
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `reviews/${reviewId}`);
+      setErrorMsg(err instanceof Error ? err.message : 'Could not delete review.');
     }
   };
 
@@ -295,11 +297,11 @@ export function ProductReviewsModal({
             {!user ? (
               <div className="flex flex-wrap items-center justify-between gap-3 py-2">
                 <p className="text-xs text-zinc-400">
-                  Sign in with Google to rate this DJ drop and share feedback with other DJs.
+                  Sign in with Email or Google to rate this DJ drop and share feedback with other DJs.
                 </p>
                 <button
                   type="button"
-                  onClick={() => signInWithGoogle()}
+                  onClick={() => (onRequestSignIn ? onRequestSignIn() : signInWithGoogle())}
                   className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold text-xs rounded-md transition-colors whitespace-nowrap shrink-0"
                 >
                   Sign In to Review

@@ -8,6 +8,7 @@ import {
   CHECKOUT_CURRENCIES,
   getPaymentMethodLabel,
   getPaymentMethodsForJurisdiction,
+  PAYMENT_METHOD_CATALOG,
 } from '../data/paymentMethods';
 import { db, handleFirestoreError, OperationType, signInWithGoogle } from '../firebase';
 import {
@@ -29,6 +30,7 @@ interface CheckoutDrawerProps {
   onClearCart: () => void;
   user: User | null;
   storefrontConfig: PublicStorefrontConfig | null;
+  onOpenAuth?: (tab?: 'signin' | 'signup' | 'admin') => void;
   onOrderCompleted: (order: OrderRecord, license: LicenseAgreement) => void;
 }
 
@@ -40,6 +42,7 @@ export function CheckoutDrawer({
   onClearCart,
   user,
   storefrontConfig,
+  onOpenAuth,
   onOrderCompleted,
 }: CheckoutDrawerProps) {
   const [jurisdictionCode, setJurisdictionCode] = useState('UG');
@@ -47,6 +50,11 @@ export function CheckoutDrawer({
   const [taxId, setTaxId] = useState('');
   const [djHandle, setDjHandle] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<string>('mtn_momo');
+  const [mobilePhone, setMobilePhone] = useState('');
+  const [cardHolderName, setCardHolderName] = useState('');
+  const [cardLast4, setCardLast4] = useState('');
+  const [walletHandle, setWalletHandle] = useState('');
+  const [bankReference, setBankReference] = useState('');
   const [processing, setProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [promoInput, setPromoInput] = useState('');
@@ -105,6 +113,18 @@ export function CheckoutDrawer({
     [jurisdictionCode]
   );
 
+  const selectedMethodObj = PAYMENT_METHOD_CATALOG[paymentMethod];
+  const selectedCategory = selectedMethodObj?.category || 'mobile_money';
+
+  useEffect(() => {
+    if (user?.email && !walletHandle) {
+      setWalletHandle(user.email);
+    }
+    if (user?.displayName && !cardHolderName) {
+      setCardHolderName(user.displayName);
+    }
+  }, [user?.email, user?.displayName, walletHandle, cardHolderName]);
+
   if (!open) return null;
 
   const handleApplyPromoCode = async () => {
@@ -146,8 +166,35 @@ export function CheckoutDrawer({
     setErrorMessage('');
     if (cart.length === 0) return;
 
+    if (selectedCategory === 'mobile_money') {
+      const cleanPhone = mobilePhone.replace(/[^0-9+]/g, '');
+      if (cleanPhone.length < 7) {
+        setErrorMessage('Enter a valid Mobile Money phone number (at least 7 digits, e.g. +256784903051).');
+        return;
+      }
+    } else if (selectedCategory === 'card') {
+      if (cardHolderName.trim().length < 2) {
+        setErrorMessage('Please enter the cardholder full name for 3DS authorization.');
+        return;
+      }
+      if (!/^\d{4}$/.test(cardLast4.trim())) {
+        setErrorMessage('Enter the last 4 digits of your card for authorization confirmation.');
+        return;
+      }
+    } else if (selectedCategory === 'wallet') {
+      if (walletHandle.trim().length < 3) {
+        setErrorMessage('Enter your digital wallet email or handle.');
+        return;
+      }
+    }
+
     let activeUser = user;
     if (!activeUser) {
+      if (onOpenAuth) {
+        onOpenAuth('signin');
+        setErrorMessage('Sign in with Email or Google to authorize payment and receive your instant download.');
+        return;
+      }
       try {
         const cred = await signInWithGoogle();
         activeUser = cred.user;
@@ -176,6 +223,18 @@ export function CheckoutDrawer({
         creatorUid: item.drop.createdBy || 'studio_admin',
       }));
 
+      const paymentDetails: Record<string, string> = {};
+      if (selectedCategory === 'mobile_money') {
+        paymentDetails.phoneNumber = mobilePhone.trim().slice(0, 32);
+      } else if (selectedCategory === 'card') {
+        paymentDetails.cardholderName = cardHolderName.trim().slice(0, 80);
+        paymentDetails.cardLast4 = cardLast4.trim().slice(0, 4);
+      } else if (selectedCategory === 'wallet') {
+        paymentDetails.walletHandle = walletHandle.trim().slice(0, 120);
+      } else if (bankReference.trim()) {
+        paymentDetails.bankReference = bankReference.trim().slice(0, 80);
+      }
+
       const idToken = await activeUser.getIdToken();
       const authRes = await fetch('/api/checkout/authorize', {
         method: 'POST',
@@ -187,6 +246,9 @@ export function CheckoutDrawer({
           subtotalUsd,
           discountUsd,
           jurisdictionCode,
+          currency: activeCurrency,
+          paymentMethod,
+          paymentDetails,
           taxId,
           payoutStatus: storefrontConfig?.payoutStatus || 'pending_setup',
           items: orderItemsPayload.map((i) => ({
@@ -206,6 +268,7 @@ export function CheckoutDrawer({
       const licenseId: string = authData.licenseId;
       const downloadToken: string = authData.downloadToken;
       const licenseSerial: string = authData.licenseSerial;
+      const transactionRef: string = String(authData.transactionRef || `TXN-${orderId}`).slice(0, 64);
       const serverTax = authData.taxBreakdown;
       const feeBreakdown = authData.feeBreakdown || {
         platformFeeRate: 0.05,
@@ -235,6 +298,8 @@ export function CheckoutDrawer({
         subtotalUsd: Number(subtotalUsd.toFixed(2)),
         taxAmountUsd: serverTax.taxAmountUsd,
         totalUsd: serverTax.totalUsd,
+        localTotalAmount: Number(serverTax.localTotal || taxSummary.localTotal || 0),
+        transactionRef,
         platformFeeUsd: Number(feeBreakdown.platformFeeUsd || 0),
         creatorEarningsUsd: Number(feeBreakdown.creatorEarningsUsd || 0),
         ...(appliedPromo && discountUsd > 0
@@ -315,7 +380,7 @@ export function CheckoutDrawer({
 
       // Automated email confirmation receipt
       const emailSubject = `Order ${orderId} & License ${licenseSerial} Confirmed`;
-      const emailBody = `Hello ${cleanDjHandle}, your DropVault Audio order (${orderId}) for ${licenseDoc.dropTitle} is confirmed. Jurisdiction: ${serverTax.jurisdiction.name}. Total: $${serverTax.totalUsd.toFixed(2)} USD. Your master files and license agreement (${licenseSerial}) are ready for download.`;
+      const emailBody = `Hello ${cleanDjHandle}, your Quality DJ Drops Worldwide 🌐 order (${orderId}) for ${licenseDoc.dropTitle} is confirmed. Jurisdiction: ${serverTax.jurisdiction.name}. Total: $${serverTax.totalUsd.toFixed(2)} USD. Your master files and license agreement (${licenseSerial}) are ready for download.`;
 
       const emailRes = await fetch('/api/notifications/email', {
         method: 'POST',
@@ -348,8 +413,8 @@ export function CheckoutDrawer({
           previewBody: emailBody,
           createdAt: serverTimestamp(),
         });
-      } catch (err) {
-        handleFirestoreError(err, OperationType.CREATE, `emailLogs/${logId}`);
+      } catch (logErr) {
+        console.warn('Email receipt log note:', logErr);
       }
 
       setCompletedOrder(orderDoc);
@@ -401,8 +466,10 @@ export function CheckoutDrawer({
                     Order {completedOrder.id} Confirmed
                   </div>
                   <div className="text-xs text-zinc-300 mt-1">
-                    {completedOrder.paymentStatus === 'authorized_pending_payout'
-                      ? 'Authorized in Sandbox Gateway (owner payout account can be linked anytime in Studio Settings).'
+                    {completedOrder.paymentStatus === 'invoice_issued'
+                      ? 'Proforma bank invoice issued with instant digital preview access.'
+                      : completedOrder.paymentStatus === 'authorized_pending_payout'
+                      ? 'Authorized via verified payment rail (owner payout account can be linked anytime in Studio Settings).'
                       : 'Payment verified and settled.'}
                   </div>
                 </div>
@@ -433,6 +500,12 @@ export function CheckoutDrawer({
               </div>
 
               <div className="p-4 bg-[#0B0D11] border border-zinc-800 rounded-md space-y-2 text-xs">
+                {completedOrder.transactionRef && (
+                  <div className="flex items-center justify-between text-zinc-400">
+                    <span>Transaction Ref</span>
+                    <span className="font-mono text-amber-400">{completedOrder.transactionRef}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-zinc-400">
                   <span>License Serial</span>
                   <span className="font-mono text-zinc-100">{completedLicense.serialNumber}</span>
@@ -453,6 +526,14 @@ export function CheckoutDrawer({
                     ${completedOrder.totalUsd.toFixed(2)} USD
                   </span>
                 </div>
+                {completedOrder.localTotalAmount ? (
+                  <div className="flex items-center justify-between text-zinc-500 tabular-nums">
+                    <span>Local Equivalent</span>
+                    <span className="font-mono">
+                      {completedOrder.localTotalAmount.toLocaleString()} {completedOrder.currency}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : cart.length === 0 ? (
@@ -597,15 +678,130 @@ export function CheckoutDrawer({
                       );
                     })}
                   </div>
+                  {/* Payment-Method Specific Verification Inputs */}
+                  <div className="mt-3 p-3.5 bg-[#0B0D11] border border-zinc-800 rounded-md space-y-2.5">
+                    <div className="text-xs font-semibold text-zinc-200">
+                      {selectedMethodObj?.label || 'Payment Verification'} Details
+                    </div>
+                    {selectedCategory === 'mobile_money' && (
+                      <div>
+                        <label className="block text-[11px] text-zinc-400 mb-1">
+                          Mobile Money Phone Number (STK / Push Prompt) *
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          value={mobilePhone}
+                          onChange={(e) => setMobilePhone(e.target.value)}
+                          placeholder="e.g. +256 784 903 051"
+                          maxLength={32}
+                          className="w-full px-3 py-2 bg-[#12151C] border border-zinc-800 rounded-md text-xs font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    )}
+                    {selectedCategory === 'card' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] text-zinc-400 mb-1">
+                            Cardholder Full Name *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={cardHolderName}
+                            onChange={(e) => setCardHolderName(e.target.value)}
+                            placeholder="Name on Visa / Mastercard"
+                            maxLength={80}
+                            className="w-full px-3 py-2 bg-[#12151C] border border-zinc-800 rounded-md text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-zinc-400 mb-1">
+                            Last 4 Digits *
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            required
+                            value={cardLast4}
+                            onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            placeholder="4242"
+                            maxLength={4}
+                            className="w-full px-3 py-2 bg-[#12151C] border border-zinc-800 rounded-md text-xs font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {selectedCategory === 'wallet' && (
+                      <div>
+                        <label className="block text-[11px] text-zinc-400 mb-1">
+                          Wallet Email / Account Handle *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={walletHandle}
+                          onChange={(e) => setWalletHandle(e.target.value)}
+                          placeholder="e.g. dj@example.com or @handle"
+                          maxLength={120}
+                          className="w-full px-3 py-2 bg-[#12151C] border border-zinc-800 rounded-md text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    )}
+                    {(selectedCategory === 'instant_bank' || selectedCategory === 'invoice') && (
+                      <div>
+                        <label className="block text-[11px] text-zinc-400 mb-1">
+                          Bank / Wire Transfer Reference (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={bankReference}
+                          onChange={(e) => setBankReference(e.target.value)}
+                          placeholder="e.g. DJ Studio Account / Proforma Ref"
+                          maxLength={80}
+                          className="w-full px-3 py-2 bg-[#12151C] border border-zinc-800 rounded-md text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
                   <p className="text-xs text-zinc-500 mt-2 flex items-center gap-1.5">
                     <Lock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                     <span>
                       {storefrontConfig?.payoutStatus === 'connected'
                         ? storefrontConfig.gatewayModeLabel
-                        : 'Built-in gateway ready — owner payout account can be linked later in Studio Settings.'}
+                        : 'Built-in payment gateway ready — owner payout account can be configured anytime in Studio Settings.'}
                     </span>
                   </p>
                 </div>
+
+                {!user && (
+                  <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-md flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-xs text-zinc-200">
+                      Sign in with Email or Google to lock your license &amp; instant download link.
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {onOpenAuth && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => onOpenAuth('signin')}
+                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold text-xs rounded-md transition-colors"
+                          >
+                            Sign In / Email
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onOpenAuth('signup')}
+                            className="px-3 py-1.5 bg-[#0B0D11] border border-zinc-700 hover:border-amber-500 text-zinc-200 font-medium text-xs rounded-md transition-colors"
+                          >
+                            Create Account
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="p-3 bg-[#0B0D11] border border-zinc-800 rounded-md space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -709,8 +905,8 @@ export function CheckoutDrawer({
               {processing
                 ? 'Authorizing & Generating License...'
                 : user
-                ? `Complete Order · $${taxSummary.totalUsd.toFixed(2)} USD`
-                : `Sign In with Google & Pay $${taxSummary.totalUsd.toFixed(2)}`}
+                ? `Place Order · $${taxSummary.totalUsd.toFixed(2)} USD`
+                : `Sign In & Place Order · $${taxSummary.totalUsd.toFixed(2)} USD`}
             </button>
           </div>
         )}

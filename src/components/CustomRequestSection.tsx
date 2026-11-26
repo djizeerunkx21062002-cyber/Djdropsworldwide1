@@ -11,12 +11,14 @@ interface CustomRequestSectionProps {
   user: User | null;
   emailTemplateConfig?: EmailTemplateConfig | null;
   onRequestCreated: (req: CustomDropRequest) => void;
+  onRequestSignIn?: () => void;
 }
 
 export function CustomRequestSection({
   user,
   emailTemplateConfig,
   onRequestCreated,
+  onRequestSignIn,
 }: CustomRequestSectionProps) {
   const [djName, setDjName] = useState('');
   const [scriptText, setScriptText] = useState('');
@@ -41,6 +43,11 @@ export function CustomRequestSection({
 
     let activeUser = user;
     if (!activeUser) {
+      if (onRequestSignIn) {
+        onRequestSignIn();
+        setErrorMessage('Please sign in with Email or Google first, then submit your brief.');
+        return;
+      }
       try {
         const cred = await signInWithGoogle();
         activeUser = cred.user;
@@ -174,7 +181,7 @@ export function CustomRequestSection({
             </p>
             <div className="flex flex-wrap items-center gap-2.5">
               <a
-                href="https://wa.me/256784903051?text=Hello%20DropVault%20Audio%2C%20I%20would%20like%20to%20discuss%20a%20custom%20DJ%20drop%20timeline%20and%20budget."
+                href="https://wa.me/256784903051?text=Hello%20Quality%20DJ%20Drops%20Worldwide%2C%20I%20would%20like%20to%20discuss%20a%20custom%20DJ%20drop%20timeline%20and%20budget."
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-md transition-colors whitespace-nowrap shrink-0"
@@ -183,7 +190,7 @@ export function CustomRequestSection({
                 WhatsApp +256 784 903 051
               </a>
               <a
-                href="mailto:opioisaac21062002@gmail.com?subject=DropVault%20Audio%20Customer%20Support"
+                href="mailto:opioisaac21062002@gmail.com?subject=Quality%20DJ%20Drops%20Worldwide%20Customer%20Support"
                 className="inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-medium bg-[#0B0D11] border border-zinc-800 hover:border-amber-500 text-zinc-200 rounded-md transition-colors"
               >
                 <Mail className="w-4 h-4 text-amber-400 shrink-0" />
@@ -330,7 +337,7 @@ export function CustomRequestSection({
 
           <div className="flex items-center justify-between gap-4 pt-2">
             <span className="text-xs text-zinc-500">
-              {user ? `Submitting as ${user.email}` : 'Google sign-in required on submit'}
+              {user ? `Submitting as ${user.email}` : 'Email or Google sign-in required on submit'}
             </span>
             <button
               type="submit"

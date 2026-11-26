@@ -1,4 +1,4 @@
-import { Jurisdiction } from '../types';
+import type { Jurisdiction } from '../types.ts';
 
 type CompactCountry = [string, string, string, string, number, string, number, boolean];
 

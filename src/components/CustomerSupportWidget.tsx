@@ -36,7 +36,7 @@ export function CustomerSupportWidget({
   const [messages, setMessages] = useState<SupportChatMessage[]>([
     {
       role: 'model',
-      text: 'Welcome to DropVault Audio Support! Ask me about DJ drop recommendations, licensing tiers, VAT/GST tax compliance, local payment methods, or custom drop milestones.',
+      text: 'Welcome to Quality DJ Drops Worldwide 🌐 Support! Ask me about DJ drop recommendations, licensing tiers, VAT/GST tax compliance, local payment methods, or custom drop milestones.',
     },
   ]);
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
@@ -135,7 +135,7 @@ export function CustomerSupportWidget({
     setMessages([
       {
         role: 'model',
-        text: 'Conversation reset. Ask me anything about DropVault Audio drops, licensing rights, global tax rules, or custom commissions.',
+        text: 'Conversation reset. Ask me anything about Quality DJ Drops Worldwide 🌐 drops, licensing rights, global tax rules, or custom commissions.',
       },
     ]);
   };
@@ -148,7 +148,7 @@ export function CustomerSupportWidget({
         <div
           className="w-[calc(100vw-2.5rem)] sm:w-[400px] h-[540px] max-h-[80vh] bg-[#12151C] border border-zinc-800 rounded-lg shadow-2xl flex flex-col overflow-hidden"
           role="dialog"
-          aria-label="DropVault AI Customer Support"
+          aria-label="Quality DJ Drops Worldwide AI Customer Support"
         >
           {/* Header */}
           <div className="px-4 py-3 bg-[#0B0D11] border-b border-zinc-800 flex items-center justify-between gap-2">
@@ -158,7 +158,7 @@ export function CustomerSupportWidget({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-semibold text-zinc-100 truncate">
-                  DropVault Support Concierge
+                  Quality DJ Drops Support Concierge
                 </div>
                 <div className="text-[11px] text-zinc-400 truncate">
                   Licensing, pricing, tax &amp; catalog help

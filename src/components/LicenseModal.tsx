@@ -14,14 +14,14 @@ export function LicenseModal({ license, onClose }: LicenseModalProps) {
 
   const handleDownloadCertificate = () => {
     const content = [
-      'DROPVAULT AUDIO — CUSTOM AUDIO LICENSING AGREEMENT',
-      '====================================================',
+      'QUALITY DJ DROPS WORLDWIDE — CUSTOM AUDIO LICENSING AGREEMENT',
+      '==============================================================',
       `License Serial: ${license.serialNumber}`,
       `Order Reference: ${license.orderId}`,
       `Status: ${license.status.toUpperCase()}`,
       '',
       '1. PARTIES',
-      `Licensor: DropVault Audio Studio (Support: +256784903051)`,
+      `Licensor: Quality DJ Drops Worldwide Studio (Support: +256784903051)`,
       `Licensee: ${license.licenseeName} (${license.licenseeEmail})`,
       `Authorized DJ / Broadcast Handle: ${license.djName}`,
       '',
@@ -35,8 +35,8 @@ export function LicenseModal({ license, onClose }: LicenseModalProps) {
       license.rightsSummary,
       '',
       '4. OWNERSHIP & COMPLIANCE',
-      'Master copyright remains with DropVault Audio unless Exclusive Master Buyout is specified.',
-      'This agreement is digitally verified and recorded in the DropVault Audio Licensing Ledger.',
+      'Master copyright remains with Quality DJ Drops Worldwide unless Exclusive Master Buyout is specified.',
+      'This agreement is digitally verified and recorded in the Quality DJ Drops Worldwide Licensing Ledger.',
     ].join('\n');
 
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });

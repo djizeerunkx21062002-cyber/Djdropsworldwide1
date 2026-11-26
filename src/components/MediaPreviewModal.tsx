@@ -78,7 +78,8 @@ export function MediaPreviewModal({
   const [textLoading, setTextLoading] = useState(false);
 
   const previewUrl = target
-    ? target.mediaType === 'audio' && target.assetId.startsWith('synth-')
+    ? target.mediaType === 'audio' &&
+      (target.assetId.startsWith('synth-') || target.assetId.startsWith('seed-'))
       ? `/api/audio/preview/${encodeURIComponent(target.assetId)}`
       : `/api/media/preview/${encodeURIComponent(target.assetId)}`
     : '';
@@ -155,6 +156,14 @@ export function MediaPreviewModal({
               <span className="uppercase">{target.mediaType}</span>
               <span className="text-zinc-600">·</span>
               <span>{target.formatLabel}</span>
+              {drop?.voiceCategory && (
+                <>
+                  <span className="text-zinc-600">·</span>
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px]">
+                    {drop.voiceCategory}
+                  </span>
+                </>
+              )}
               {target.sampleRate && (
                 <>
                   <span className="text-zinc-600">·</span>
@@ -411,7 +420,7 @@ export function MediaPreviewModal({
                       className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold text-xs rounded-md transition-colors whitespace-nowrap shrink-0"
                     >
                       <ShoppingBag className="w-3.5 h-3.5" />
-                      License &amp; Add
+                      Place Order
                     </button>
                   </div>
                 </div>

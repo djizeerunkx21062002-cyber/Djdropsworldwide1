@@ -1,18 +1,21 @@
 import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
-import express, { NextFunction, Request, Response } from 'express';
+import express, { type NextFunction, type Request, type Response } from 'express';
 import { getApp, getApps, initializeApp } from 'firebase-admin/app';
-import { DecodedIdToken, getAuth as getAdminAuth } from 'firebase-admin/auth';
+import { type DecodedIdToken, getAuth as getAdminAuth } from 'firebase-admin/auth';
 import fs from 'fs';
 import multer from 'multer';
 import nodemailer from 'nodemailer';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import firebaseConfig from './firebase-applet-config.json';
-import { calculateTaxBreakdown, GLOBAL_JURISDICTIONS } from './src/data/jurisdictions';
+import { calculateTaxBreakdown, GLOBAL_JURISDICTIONS } from './src/data/jurisdictions.ts';
 
 dotenv.config();
+
+const firebaseConfig = JSON.parse(
+  fs.readFileSync(path.resolve(process.cwd(), 'firebase-applet-config.json'), 'utf8')
+) as { projectId: string; firestoreDatabaseId?: string };
 
 const PORT = Number(process.env.PORT) || 3000;
 const DOWNLOAD_SIGNING_SECRET =
@@ -131,7 +134,52 @@ function resolveSafePathInDir(baseDir: string, fileName: string): string | null 
   return resolved;
 }
 
+const PUBLIC_ASSETS_DIR = path.resolve(process.cwd(), 'public', 'assets', 'aistudio');
+
+const SEED_AUDIO_FILES: Record<string, { fileName: string; downloadName: string }> = {
+  'seed-rasco-street-mix-king': {
+    fileName: 'Wigman-drop-by-nivel-2026-11-25-22-44-Dj-Rasco_-The-Street-Mix-King_df090989.mp3',
+    downloadName: 'DJ-Rasco-The-Street-Mix-King-Master.mp3',
+  },
+  'seed-danningtone-mr-grade': {
+    fileName: 'Wigman-drop-by-nivel-2026-11-25-17-28-Dj-Danningtone-mr-grade-on-the-vibe__1__563d9b39.mp3',
+    downloadName: 'DJ-Danningtone-Mr-Grade-On-The-Vibe-Master.mp3',
+  },
+  'seed-izee-ranx-worldwide': {
+    fileName: '_Wigman_drop_by_nivel_You_r......tly.._635ce163.mp3',
+    downloadName: 'DJ-Izee-Ranx-Worldwide-Drops-Promo-Master.mp3',
+  },
+  'seed-kizo-signature': {
+    fileName: '_Dj_drops_by_dj_mash_pro___Ment......zzo.__aee4e5fa.mp3',
+    downloadName: 'DJ-Kizo-Signature-Stamp-Master.mp3',
+  },
+  'seed-flamezy-follow-clean': {
+    fileName: 'Dj-drops-by-dj-Mash-Pro-Ug-2026-11-24-00-00-_upbeat-promotional-tone_-Follow-Deejay-flamezy__e90d96d6.mp3',
+    downloadName: 'DJ-Flamezy-Follow-Socials-Upbeat-Master.mp3',
+  },
+  'seed-flamezy-follow-fx': {
+    fileName: 'Dj-drops-by-dj-Mash-Pro-Ug-2026-11-24-00-00-_upbeat-promotional-tone_-Follow-Deejay-flamezy___1__b85b7536.mp3',
+    downloadName: 'DJ-Flamezy-Follow-Socials-Club-FX-Master.mp3',
+  },
+  'seed-flamezy-party-master': {
+    fileName: 'Dj-drops-by-dj-Mash-Pro-Ug-2026-11-23-23-31-Deejay-flamezy_-the-incredible-party-master_bc011c1e.mp3',
+    downloadName: 'DJ-Flamezy-Incredible-Party-Master.mp3',
+  },
+};
+
+function findSeedAudioFile(assetId: string): { filePath: string; fileName: string } | null {
+  const entry = SEED_AUDIO_FILES[assetId];
+  if (!entry) return null;
+  const safePath = resolveSafePathInDir(PUBLIC_ASSETS_DIR, entry.fileName);
+  if (safePath && fs.existsSync(safePath)) {
+    return { filePath: safePath, fileName: entry.downloadName };
+  }
+  return null;
+}
+
 function findUploadedAssetFile(assetId: string): { filePath: string; fileName: string } | null {
+  const seedMatch = findSeedAudioFile(assetId);
+  if (seedMatch) return seedMatch;
   for (const dir of [MEDIA_UPLOAD_DIR, AUDIO_UPLOAD_DIR]) {
     if (!fs.existsSync(dir)) continue;
     const diskFiles = fs.readdirSync(dir);
@@ -397,18 +445,6 @@ async function startServer() {
       return;
     }
 
-    const defaultUserAudioPath = path.join(
-      process.cwd(),
-      'public',
-      'assets',
-      'aistudio',
-      'Wigman-drop-by-nivel-2026-11-25-17-28-Dj-Danningtone-mr-grade-on-the-vibe__1__563d9b39.mp3'
-    );
-    if (fs.existsSync(defaultUserAudioPath)) {
-      streamAssetFileWithRange(req, res, defaultUserAudioPath, 'Wigman-drop-by-nivel.mp3');
-      return;
-    }
-
     let wav = previewCache.get(dropId);
     if (!wav) {
       wav = synthesizeDropWavBuffer(dropId, 5);
@@ -509,6 +545,58 @@ async function startServer() {
     }
   );
 
+  const VALID_PAYMENT_METHODS = new Set([
+    'mtn_momo',
+    'airtel_money',
+    'mpesa_ke',
+    'tigo_pesa',
+    'orange_wave',
+    'paystack_ng',
+    'ozow_za',
+    'sepa_instant',
+    'ideal_nl',
+    'bancontact_be',
+    'giropay_de',
+    'cartes_bancaires_fr',
+    'bizum_es',
+    'multibanco_pt',
+    'blik_pl',
+    'swish_se',
+    'vipps_no',
+    'mobilepay_dk',
+    'twint_ch',
+    'faster_payments_gb',
+    'ach_us',
+    'cashapp_us',
+    'interac_ca',
+    'upi_in',
+    'netbanking_in',
+    'pix_br',
+    'boleto_br',
+    'spei_mx',
+    'paypay_jp',
+    'kakaopay_kr',
+    'alipay_wechat_cn',
+    'paynow_sg',
+    'fpx_my',
+    'qris_id',
+    'promptpay_th',
+    'gcash_ph',
+    'vietqr_vn',
+    'payid_au',
+    'mada_sa',
+    'apple_google_pay',
+    'card_global',
+    'flutterwave',
+    'stripe',
+    'paypal',
+    'bank_transfer',
+    'mobile_money',
+    'bank_invoice',
+  ]);
+
+  const INVOICE_PAYMENT_METHODS = new Set(['bank_invoice', 'boleto_br']);
+
   app.post('/api/checkout/authorize', requireAuth, (req: AuthenticatedRequest, res: Response) => {
     const uid = req.user?.uid;
     if (!uid) {
@@ -519,15 +607,39 @@ async function startServer() {
     const jurisdictionCode = String(req.body?.jurisdictionCode || 'UG');
     const taxId = typeof req.body?.taxId === 'string' ? req.body.taxId : '';
     const payoutStatus = req.body?.payoutStatus === 'connected' ? 'connected' : 'pending_setup';
+    const paymentMethod = String(req.body?.paymentMethod || 'mtn_momo').trim().slice(0, 40);
+    const paymentDetails = req.body?.paymentDetails && typeof req.body.paymentDetails === 'object'
+      ? (req.body.paymentDetails as Record<string, unknown>)
+      : {};
+    const requestedCurrency = String(req.body?.currency || '').trim().toUpperCase().slice(0, 8);
 
     if (!Number.isFinite(subtotalUsd) || subtotalUsd <= 0) {
       res.status(400).json({ error: 'Order subtotal must be positive' });
       return;
     }
+    if (!VALID_PAYMENT_METHODS.has(paymentMethod)) {
+      res.status(400).json({ error: `Unsupported payment method: ${paymentMethod}` });
+      return;
+    }
+
+    const mobileMethods = new Set([
+      'mtn_momo', 'airtel_money', 'mpesa_ke', 'tigo_pesa', 'orange_wave', 'bizum_es', 'swish_se', 'vipps_no', 'mobilepay_dk', 'mobile_money',
+    ]);
+    if (mobileMethods.has(paymentMethod)) {
+      const phone = String(paymentDetails.phoneNumber || '').replace(/[^0-9+]/g, '');
+      if (phone.length < 7) {
+        res.status(400).json({ error: 'Please enter a valid mobile money phone number (at least 7 digits).' });
+        return;
+      }
+    }
 
     const orderId = `ord_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const licenseId = `lic_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const licenseSerial = `DV-${new Date().getFullYear()}-${crypto
+      .randomBytes(4)
+      .toString('hex')
+      .toUpperCase()}`;
+    const transactionRef = `TXN-${paymentMethod.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)}-${crypto
       .randomBytes(4)
       .toString('hex')
       .toUpperCase()}`;
@@ -561,12 +673,21 @@ async function startServer() {
       creatorEarningsUsd = Number(creatorEarningsUsd.toFixed(2));
     }
 
+    const resolvedPaymentStatus = INVOICE_PAYMENT_METHODS.has(paymentMethod)
+      ? 'invoice_issued'
+      : payoutStatus === 'connected'
+      ? 'paid'
+      : 'authorized_pending_payout';
+
     res.json({
       orderId,
       licenseId,
       licenseSerial,
+      transactionRef,
       downloadToken,
-      paymentStatus: payoutStatus === 'connected' ? 'paid' : 'authorized_pending_payout',
+      paymentMethod,
+      currency: requestedCurrency || taxBreakdown.localCurrency,
+      paymentStatus: resolvedPaymentStatus,
       taxBreakdown,
       feeBreakdown: {
         platformFeeRate: PLATFORM_FEE_RATE,
@@ -609,7 +730,7 @@ async function startServer() {
     const milestone = String(req.body?.milestone || 'Update').trim();
     const previewBody = String(req.body?.previewBody || '').trim();
     const htmlBody = typeof req.body?.htmlBody === 'string' ? req.body.htmlBody : undefined;
-    const senderName = String(req.body?.senderName || 'DropVault Audio')
+    const senderName = String(req.body?.senderName || 'Quality DJ Drops Worldwide')
       .replace(/[\r\n<>"]/g, '')
       .trim()
       .slice(0, 80);
@@ -631,7 +752,7 @@ async function startServer() {
       /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
     );
     const smtpFromAddress = smtpAddressMatch ? smtpAddressMatch[1] : 'noreply@dropvault.audio';
-    const smtpFrom = `${senderName || 'DropVault Audio'} <${smtpFromAddress}>`;
+    const smtpFrom = `${senderName || 'Quality DJ Drops Worldwide'} <${smtpFromAddress}>`;
 
     if (smtpHost && smtpUser && smtpPass) {
       try {
@@ -723,7 +844,7 @@ async function startServer() {
       .join('\n');
 
     const systemInstruction = [
-      'You are the dedicated Customer Support Specialist for DropVault Audio, a global DJ drop marketplace and custom audio licensing studio.',
+      'You are the dedicated Customer Support Specialist for Quality DJ Drops Worldwide 🌐, a global DJ drop marketplace and custom audio licensing studio.',
       'Be concise, helpful, accurate, and friendly. Keep answers focused (2-5 short sentences or clean bullets) so customers get immediate clarity.',
       '',
       'CORE PLATFORM FACTS:',
@@ -736,7 +857,7 @@ async function startServer() {
       '- Digital Delivery & Security: Every completed order immediately issues a serialized PDF/printable license certificate and a 30-day signed WAV master download token.',
       '- Custom Drop Commissions: Clients submit custom scripts via the "Custom Drops" section, tracked through 5 automated milestones (Submitted -> Script Approved -> Voicing & FX -> Mastering -> Delivered) with automated email updates.',
       '- Supported Product Formats & Live Website Preview: Sellers and admins can upload and sell Audio (WAV, MP3, FLAC, AIFF, OGG, M4A), Video (MP4, WebM, MOV), High-Res Images (PNG, JPG, WebP, GIF), and Digital Packs/Documents (ZIP, PDF, MIDI, DAW presets) up to 200 MB, with instant in-browser playback, video/image/PDF preview, and customer reviews.',
-      '- Co-Creator Marketplace & Global Payouts: Independent creators can sign up in Studio Portal to publish and sell their own products globally. DropVault takes a 5% platform fee on successful purchases (95% to creator) and a 7% fee on global creator withdrawals (93% net sent worldwide via Bank/SWIFT/IBAN, Mobile Money, PayPal, Stripe, and local instant rails).',
+      '- Co-Creator Marketplace & Global Payouts: Independent creators can sign up in Studio Portal to publish and sell their own products globally. Quality DJ Drops Worldwide takes a 5% platform fee on successful purchases (95% to creator) and a 7% fee on global creator withdrawals (93% net sent worldwide via Bank/SWIFT/IBAN, Mobile Money, PayPal, Stripe, and local instant rails).',
       '- Customer Reviews & Themes: Signed-in customers can post star ratings and written reviews on any catalog product, and users can switch between 5 studio themes (Obsidian Amber, Midnight Cyan, Crimson Club, Emerald Mastering, Daylight Studio).',
       '- Direct Customer Support Email & WhatsApp: Email opioisaac21062002@gmail.com or WhatsApp +256 784 903 051 (https://wa.me/256784903051) for customer care, order assistance, custom timeline, or bulk package quotes.',
       '',
@@ -804,14 +925,18 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distDir = path.resolve(process.cwd(), 'dist');
+    const publicDir = path.resolve(process.cwd(), 'public');
     app.use(express.static(distDir));
+    if (fs.existsSync(publicDir)) {
+      app.use(express.static(publicDir));
+    }
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`DropVault Audio server listening on http://0.0.0.0:${PORT}`);
+    console.log(`Quality DJ Drops Worldwide server listening on http://0.0.0.0:${PORT}`);
   });
 }
 

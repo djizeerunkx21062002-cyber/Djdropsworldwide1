@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { User } from 'firebase/auth';
-import { deleteDoc, doc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import {
   AlertTriangle,
   Archive,
@@ -83,12 +83,14 @@ import {
   ThemeId,
   UserProfileRecord,
   UserRole,
+  VoiceCategory,
 } from '../types';
 import {
   DEFAULT_EMAIL_TEMPLATE_CONFIG,
   EMAIL_TEMPLATE_TOKENS,
   renderMilestoneEmail,
 } from '../utils/emailTemplates';
+import { AdminDashboardOverview } from './AdminDashboardOverview';
 import { JurisdictionSelector } from './JurisdictionSelector';
 import {
   inferMediaTypeFromAsset,
@@ -125,20 +127,24 @@ const MILESTONES: RequestMilestone[] = [
 
 const COVER_IMAGE_PRESETS = [
   {
-    label: 'Afrobeats Studio Art',
-    url: '/src/assets/images/drop_afrobeats_cover_1795606573798.jpg',
+    label: 'Quality DJ Drops Poster',
+    url: '/assets/aistudio/file_000000009398821180e94a29152a59ad_dedcce57.png',
   },
   {
-    label: 'Club Hype Art',
-    url: '/src/assets/images/drop_club_hype_cover_1795606572660.jpg',
+    label: 'Female Voice Drop Poster',
+    url: '/assets/aistudio/file_0000000037e482118be1c9f13c18e4cf_d4a8a3e9.png',
   },
   {
-    label: 'Radio Imaging Art',
-    url: '/src/assets/images/drop_radio_imaging_cover_1795606572455.jpg',
+    label: 'DJ Drop Sunday Offer',
+    url: '/assets/aistudio/file_00000000f0e48211ab50105531ba28da_1dc7702d.png',
   },
   {
-    label: 'Mastering Console Art',
-    url: '/src/assets/images/hero_dj_studio_1795606571688.jpg',
+    label: '2 Custom Drop Packs',
+    url: '/assets/aistudio/file_00000000f6cc8211a9cb3adbe4ba8934_6cb24f04.png',
+  },
+  {
+    label: 'Lower Thirds Video Labels',
+    url: '/assets/aistudio/file_00000000570882119050958b93e290ff_6998f9bf.png',
   },
 ];
 
@@ -169,6 +175,8 @@ interface StudioDashboardProps {
   onRoleUpgraded: (newRole: UserRole) => void;
   onInspectLicense: (license: LicenseAgreement) => void;
   onPlayAudio: (assetId: string, title: string) => void;
+  onOpenAuth?: (tab?: 'signin' | 'signup' | 'admin') => void;
+  onOpenAdminLogin?: () => void;
   onBackToStorefront: () => void;
 }
 
@@ -199,6 +207,8 @@ export function StudioDashboard({
   onRoleUpgraded,
   onInspectLicense,
   onPlayAudio,
+  onOpenAuth,
+  onOpenAdminLogin,
   onBackToStorefront,
 }: StudioDashboardProps) {
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
@@ -242,8 +252,9 @@ export function StudioDashboard({
   const [catalogSearch, setCatalogSearch] = useState('');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [prodTitle, setProdTitle] = useState('');
-  const [prodVoice, setProdVoice] = useState('MC Kairo Deep');
-  const [prodGenre, setProdGenre] = useState('Afrobeats');
+  const [prodVoice, setProdVoice] = useState('Wigman Deep Male');
+  const [prodVoiceCategory, setProdVoiceCategory] = useState<VoiceCategory>('Deep male voice');
+  const [prodGenre, setProdGenre] = useState('Club & Street Mix');
   const [prodVocalStyle, setProdVocalStyle] = useState('Deep Sub Bass');
   const [prodMediaType, setProdMediaType] = useState<ProductMediaType>('audio');
   const [prodOriginalFileName, setProdOriginalFileName] = useState('');
@@ -560,8 +571,9 @@ export function StudioDashboard({
   );
 
   const isBootstrappedAdmin =
-    user?.emailVerified && user?.email === 'djizeerunkx21062002@gmail.com';
-  const isAdmin = userRole === 'admin' || Boolean(isBootstrappedAdmin);
+    Boolean(user?.emailVerified) &&
+    user?.email?.toLowerCase() === 'djizeerunkx21062002@gmail.com';
+  const isAdmin = userRole === 'admin' || isBootstrappedAdmin;
   const isCreator = userRole === 'creator';
   const isProducer = userRole === 'producer' || isAdmin;
   const canManageCatalog = isProducer || isCreator;
@@ -1081,13 +1093,14 @@ export function StudioDashboard({
     const coverImg =
       mType === 'image' && matchedAsset
         ? `/api/media/preview/${matchedAsset.id}`
-        : '/src/assets/images/drop_club_hype_cover_1795606572660.jpg';
+        : COVER_IMAGE_PRESETS[0].url;
 
     try {
       await setDoc(doc(db, 'drops', dropId), {
         id: dropId,
         title: newDropTitle.trim().slice(0, 120),
         voiceTalent: newDropVoice.trim().slice(0, 80) || 'Studio Talent',
+        voiceCategory: newDropVoice.toLowerCase().includes('female') ? 'Female voice' : 'Deep male voice',
         genre: newDropGenre,
         vocalStyle: mType === 'audio' ? 'Studio Master' : `${mType.toUpperCase()} Edition`,
         bpm: mType === 'image' || mType === 'other' ? 0 : Number(newDropBpm) || 112,
@@ -1113,7 +1126,7 @@ export function StudioDashboard({
       setNewDropTitle('');
       notifyUser(`Published "${newDropTitle}" (${mType.toUpperCase()}) to the public storefront catalog.`);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `drops/${dropId}`);
+      setErrorNotice(err instanceof Error ? err.message : 'Unable to publish drop.');
     }
   };
 
@@ -1139,19 +1152,27 @@ export function StudioDashboard({
 
     setSigningUpCreator(true);
     try {
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
       const batch = writeBatch(db);
-      batch.set(
-        doc(db, 'users', user.uid),
-        {
+      if (userSnap.exists()) {
+        batch.update(userRef, {
+          displayName: cleanName,
+          role: 'creator',
+          countryCode: j.code,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        batch.set(userRef, {
           uid: user.uid,
           email: (user.email || 'creator@dropvault.audio').slice(0, 160),
           displayName: cleanName,
           role: 'creator',
           countryCode: j.code,
+          createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+        });
+      }
       batch.set(doc(db, 'creatorProfiles', user.uid), {
         uid: user.uid,
         displayName: cleanName,
@@ -1174,7 +1195,7 @@ export function StudioDashboard({
         `Welcome @${cleanHandle}! Your Co-Creator Seller studio is active — you earn 95% per sale (5% admin fee) with global payouts (7% withdrawal fee).`
       );
     } catch (err) {
-      handleFirestoreError(err, OperationType.WRITE, `creatorProfiles/${user.uid}`);
+      setErrorNotice(err instanceof Error ? err.message : 'Unable to activate co-creator studio.');
     } finally {
       setSigningUpCreator(false);
     }
@@ -1342,8 +1363,9 @@ export function StudioDashboard({
   const resetProductForm = () => {
     setEditingProductId(null);
     setProdTitle('');
-    setProdVoice('MC Kairo Deep');
-    setProdGenre('Afrobeats');
+    setProdVoice('Wigman Deep Male');
+    setProdVoiceCategory('Deep male voice');
+    setProdGenre('Club & Street Mix');
     setProdVocalStyle('Deep Sub Bass');
     setProdMediaType('audio');
     setProdOriginalFileName('');
@@ -1351,14 +1373,14 @@ export function StudioDashboard({
     setProdBpm(112);
     setProdDurationSec(8);
     setProdKey('Am');
-    setProdTagsText('afrobeats, club, opener');
-    setProdStdPrice(29);
-    setProdComPrice(79);
-    setProdExcPrice(249);
+    setProdTagsText('deep male voice, club, opener');
+    setProdStdPrice(25);
+    setProdComPrice(69);
+    setProdExcPrice(199);
     setProdCoverImage(COVER_IMAGE_PRESETS[0].url);
     setProdAudioId('');
-    setProdAudioFormat('WAV 24-bit');
-    setProdSampleRate('48 kHz');
+    setProdAudioFormat('MP3 320kbps');
+    setProdSampleRate('44.1 kHz');
     setProdFeatured(true);
   };
 
@@ -1367,6 +1389,12 @@ export function StudioDashboard({
     setEditingProductId(item.id);
     setProdTitle(item.title);
     setProdVoice(item.voiceTalent);
+    setProdVoiceCategory(
+      item.voiceCategory ||
+        (`${item.voiceTalent} ${item.vocalStyle} ${item.tags.join(' ')}`.toLowerCase().includes('female')
+          ? 'Female voice'
+          : 'Deep male voice')
+    );
     setProdGenre(item.genre);
     setProdVocalStyle(item.vocalStyle);
     setProdMediaType(inferMediaTypeFromDrop(item));
@@ -1393,7 +1421,7 @@ export function StudioDashboard({
 
     const cleanTitle = prodTitle.trim().slice(0, 120);
     const cleanVoice = prodVoice.trim().slice(0, 80) || 'Studio Talent';
-    const cleanGenre = prodGenre.trim().slice(0, 40) || 'Afrobeats';
+    const cleanGenre = prodGenre.trim().slice(0, 40) || 'Club & Street Mix';
     const cleanVocalStyle = prodVocalStyle.trim().slice(0, 40) || 'Studio Master';
     const cleanBpm = Math.max(0, Math.min(300, Math.round(Number(prodBpm) || 0)));
     const cleanDuration = Math.max(0, Math.min(7200, Math.round(Number(prodDurationSec) || 0)));
@@ -1427,6 +1455,7 @@ export function StudioDashboard({
         await updateDoc(doc(db, 'drops', targetId), {
           title: cleanTitle,
           voiceTalent: cleanVoice,
+          voiceCategory: prodVoiceCategory,
           genre: cleanGenre,
           vocalStyle: cleanVocalStyle,
           bpm: cleanBpm,
@@ -1446,12 +1475,13 @@ export function StudioDashboard({
           featured: prodFeatured,
           updatedAt: serverTimestamp(),
         });
-        notifyUser(`Updated "${cleanTitle}" (${prodMediaType.toUpperCase()}) and pricing tiers in Firestore.`);
+        notifyUser(`Updated "${cleanTitle}" (${prodVoiceCategory}) and pricing tiers in Firestore.`);
       } else {
         await setDoc(doc(db, 'drops', targetId), {
           id: targetId,
           title: cleanTitle,
           voiceTalent: cleanVoice,
+          voiceCategory: prodVoiceCategory,
           genre: cleanGenre,
           vocalStyle: cleanVocalStyle,
           bpm: cleanBpm,
@@ -1476,17 +1506,13 @@ export function StudioDashboard({
         });
         notifyUser(
           editingProductId
-            ? `Saved "${cleanTitle}" (${prodMediaType.toUpperCase()}) to Firestore catalog.`
-            : `Added new ${prodMediaType.toUpperCase()} product "${cleanTitle}" to the live storefront.`
+            ? `Saved "${cleanTitle}" (${prodVoiceCategory}) to Firestore catalog.`
+            : `Added new ${prodVoiceCategory} product "${cleanTitle}" to the live storefront.`
         );
       }
       resetProductForm();
     } catch (err) {
-      handleFirestoreError(
-        err,
-        editingProductId && alreadyInCloud ? OperationType.UPDATE : OperationType.CREATE,
-        `drops/${targetId}`
-      );
+      setErrorNotice(err instanceof Error ? err.message : 'Unable to save product to Firestore.');
     } finally {
       setSavingProduct(false);
     }
@@ -1582,7 +1608,7 @@ export function StudioDashboard({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dropvault-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `quality-dj-drops-report-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1597,7 +1623,7 @@ export function StudioDashboard({
     }
     const totalSum = filteredReportOrders.reduce((s, o) => s + o.totalUsd, 0);
     const taxSum = filteredReportOrders.reduce((s, o) => s + o.taxAmountUsd, 0);
-    const subject = `DropVault Audio Sales & Tax Report (${filteredReportOrders.length} Orders)`;
+    const subject = `Quality DJ Drops Worldwide Sales & Tax Report (${filteredReportOrders.length} Orders)`;
     const previewBody = `Summary Report: ${filteredReportOrders.length} transactions totaling $${totalSum.toFixed(2)} USD (Tax collected: $${taxSum.toFixed(2)} USD). Territory filter: ${reportCountryFilter}. Tier filter: ${reportTierFilter}.`;
 
     const idToken = await user.getIdToken();
@@ -2153,7 +2179,7 @@ export function StudioDashboard({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dropvault-pending-payouts-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `quality-dj-drops-pending-payouts-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -2277,7 +2303,7 @@ export function StudioDashboard({
       const subject = `Order Receipt & Audio License: ${order.id} ($${order.totalUsd.toFixed(2)} USD)`;
       const itemsList = order.items.map((i) => `• ${i.title} [${i.tier.toUpperCase()}] ($${i.unitPriceUsd.toFixed(2)})`).join('\n');
       const promoLine = order.promoCode ? `Promo Code: ${order.promoCode} (Saved $${(order.discountUsd || 0).toFixed(2)})\n` : '';
-      const previewBody = `Dear ${order.buyerName},\n\nHere is your receipt for DropVault Order ${order.id}.\nTotal Paid: $${order.totalUsd.toFixed(2)} ${order.currency}\n${promoLine}Items:\n${itemsList}\nLicense ID: ${order.licenseId}\nPayment Status: ${order.paymentStatus}\n\nCustomer Support: opioisaac21062002@gmail.com`;
+      const previewBody = `Dear ${order.buyerName},\n\nHere is your receipt for Quality DJ Drops Worldwide Order ${order.id}.\nTotal Paid: $${order.totalUsd.toFixed(2)} ${order.currency}\n${promoLine}Items:\n${itemsList}\nLicense ID: ${order.licenseId}\nPayment Status: ${order.paymentStatus}\n\nCustomer Support: opioisaac21062002@gmail.com`;
 
       const res = await fetch('/api/notifications/email', {
         method: 'POST',
@@ -2391,7 +2417,7 @@ export function StudioDashboard({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dropvault-system-snapshot-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `quality-dj-drops-system-snapshot-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -2405,12 +2431,12 @@ export function StudioDashboard({
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DropVault Studio - Official Admin Access & Credentials</title>
+  <title>Quality DJ Drops Worldwide 🌐 - Official Admin Access & Credentials</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-[#0B0D11] text-zinc-100 min-h-screen flex flex-col items-center justify-center p-6 font-sans">
   <div class="max-w-2xl w-full bg-[#12151C] border border-zinc-800 rounded-xl p-8 shadow-2xl space-y-6">
-    <h1 class="text-xl font-bold text-zinc-150">DropVault Studio - Admin Credentials</h1>
+    <h1 class="text-xl font-bold text-zinc-150">Quality DJ Drops Worldwide 🌐 - Admin Credentials</h1>
     <p class="text-sm text-zinc-400">Super Admin Email: <strong class="text-amber-400">djizeerunkx21062002@gmail.com</strong></p>
     <p class="text-xs text-zinc-400">Customer Support: opioisaac21062002@gmail.com | WhatsApp: +256784903051</p>
   </div>
@@ -2434,12 +2460,12 @@ export function StudioDashboard({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DropVault Audio — Global DJ Drops & Audio Licensing</title>
+    <title>Quality DJ Drops Worldwide 🌐 — Global DJ Drops & Audio Licensing</title>
     <meta name="description" content="Own and license broadcast-ready DJ drops across 500+ global jurisdictions with instant digital delivery, automated tax compliance, and studio production workflows." />
   </head>
   <body class="bg-[#0B0D11] text-zinc-100 antialiased">
     <div style="text-align:center; padding: 60px; font-family: sans-serif;">
-      <h1>DropVault Audio Home File</h1>
+      <h1>Quality DJ Drops Worldwide 🌐 Home File</h1>
       <p>Official store home template. Access the live app at your deployment URL.</p>
     </div>
   </body>
@@ -2476,7 +2502,7 @@ export function StudioDashboard({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `dropvault-admin-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `quality-dj-drops-admin-audit-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -2492,15 +2518,36 @@ export function StudioDashboard({
         </div>
         <h2 className="text-2xl font-bold text-zinc-100">Studio &amp; Client Portal</h2>
         <p className="text-sm text-zinc-400 max-w-md mx-auto leading-relaxed">
-          Sign in with Google to view your sales analytics, manage custom DJ drop milestones, access signed audio licenses, and configure payout accounts.
+          Sign in with Email, Google, or Direct Admin Access to view sales analytics, manage custom DJ drop milestones, access signed audio licenses, and configure payout accounts.
         </p>
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
-            onClick={() => signInWithGoogle()}
+            onClick={() => (onOpenAuth ? onOpenAuth('signin') : signInWithGoogle())}
             className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold text-sm rounded-md transition-colors"
           >
-            Sign In with Google
+            Sign In / Email &amp; Google
+          </button>
+          <button
+            type="button"
+            onClick={() => (onOpenAuth ? onOpenAuth('signup') : signInWithGoogle())}
+            className="px-5 py-2.5 bg-[#12151C] border border-zinc-800 hover:border-amber-500 text-zinc-100 font-semibold text-sm rounded-md transition-colors"
+          >
+            Create Account
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onOpenAdminLogin
+                ? onOpenAdminLogin()
+                : onOpenAuth
+                ? onOpenAuth('admin')
+                : signInWithGoogle('djizeerunkx21062002@gmail.com')
+            }
+            className="px-5 py-2.5 bg-[#12151C] border border-amber-500/40 hover:border-amber-500 text-amber-400 font-semibold text-sm rounded-md transition-colors inline-flex items-center gap-1.5"
+          >
+            <Shield className="w-4 h-4" />
+            <span>Direct Admin Login</span>
           </button>
           <button
             type="button"
@@ -2514,44 +2561,102 @@ export function StudioDashboard({
     );
   }
 
-  const navItems: Array<{ id: DashboardTab; label: string; icon: typeof BarChart3; show: boolean }> = [
-    { id: 'overview', label: 'Sales & Analytics', icon: BarChart3, show: true },
-    { id: 'creator_signup', label: 'Sell as Co-Creator', icon: UserPlus, show: userRole === 'client' },
-    { id: 'catalog', label: 'Catalog & Products', icon: Disc3, show: canManageCatalog },
-    { id: 'orders', label: 'Orders & Downloads', icon: Download, show: true },
-    { id: 'requests', label: 'Client Requests', icon: SlidersHorizontal, show: true },
-    { id: 'licensing', label: 'Audio Licensing', icon: FileCheck2, show: true },
-    { id: 'storage', label: 'Cloud Media Storage', icon: FileAudio, show: canManageCatalog },
-    { id: 'payouts', label: isCreator ? 'Global Payouts' : 'Payouts', icon: Wallet, show: canWithdrawPayouts },
-    { id: 'reports', label: 'Custom Reports', icon: FileSpreadsheet, show: true },
-    { id: 'emails', label: 'Email Notifications', icon: Mail, show: true },
-    { id: 'promos', label: 'Promo & Discount Codes', icon: Tag, show: isAdmin },
-    { id: 'users', label: 'User Directory & Roles', icon: Users, show: isAdmin },
-    { id: 'audit_logs', label: 'Security & Activity Logs', icon: Shield, show: isAdmin },
-    { id: 'system_ops', label: 'System Ops & Diagnostics', icon: SlidersHorizontal, show: isAdmin },
-    { id: 'team', label: 'Team & Roles', icon: Users, show: isAdmin },
-    { id: 'settings', label: 'Payment, Tax & Storefront', icon: Settings, show: isAdmin },
+  type NavItem = {
+    id: DashboardTab;
+    label: string;
+    group: string;
+    icon: typeof BarChart3;
+    show: boolean;
+    badge?: number;
+  };
+
+  const navItems: NavItem[] = [
+    { id: 'overview', label: isAdmin ? 'Executive Overview' : 'Sales & Analytics', group: 'Executive Suite', icon: BarChart3, show: true },
+    { id: 'creator_signup', label: 'Sell as Co-Creator', group: 'Executive Suite', icon: UserPlus, show: userRole === 'client' },
+    { id: 'orders', label: 'Orders & Downloads', group: 'Commerce & Finance', icon: Download, show: true, badge: orders.length || undefined },
+    { id: 'payouts', label: isCreator ? 'Global Payouts' : 'Payouts & Settlement', group: 'Commerce & Finance', icon: Wallet, show: canWithdrawPayouts, badge: pendingPayoutRequests.length || undefined },
+    { id: 'promos', label: 'Promo & Discount Codes', group: 'Commerce & Finance', icon: Tag, show: isAdmin, badge: promoCodes.filter((p) => p.active).length || undefined },
+    { id: 'reports', label: 'Custom Reports', group: 'Commerce & Finance', icon: FileSpreadsheet, show: true },
+    { id: 'catalog', label: 'Catalog & Products', group: 'Catalog & Production', icon: Disc3, show: canManageCatalog, badge: isAdmin ? drops.length || undefined : undefined },
+    { id: 'requests', label: 'Client Requests', group: 'Catalog & Production', icon: SlidersHorizontal, show: true, badge: analytics.activeRequests || undefined },
+    { id: 'storage', label: 'Cloud Media Storage', group: 'Catalog & Production', icon: FileAudio, show: canManageCatalog },
+    { id: 'licensing', label: 'Audio Licensing', group: 'Catalog & Production', icon: FileCheck2, show: true },
+    { id: 'users', label: 'User Directory & Roles', group: 'Access & Governance', icon: Users, show: isAdmin, badge: userDirectory.length || undefined },
+    { id: 'team', label: 'Team & Roles', group: 'Access & Governance', icon: Users, show: isAdmin },
+    { id: 'audit_logs', label: 'Security & Activity Logs', group: 'Access & Governance', icon: Shield, show: isAdmin },
+    { id: 'emails', label: 'Email Notifications', group: 'Platform & CMS', icon: Mail, show: true },
+    { id: 'settings', label: 'Payment, Tax & Storefront', group: 'Platform & CMS', icon: Settings, show: isAdmin },
+    { id: 'system_ops', label: 'System Ops & Diagnostics', group: 'Platform & CMS', icon: SlidersHorizontal, show: isAdmin },
   ];
+
+  const visibleNavItems = navItems.filter((n) => n.show);
+  const navGroups = Array.from(new Set(visibleNavItems.map((n) => n.group)));
+  const activeNavMeta = visibleNavItems.find((n) => n.id === activeTab) || visibleNavItems[0];
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Sidebar */}
-        <aside className="w-full lg:w-64 shrink-0 bg-[#12151C] border border-zinc-800 rounded-lg p-4 space-y-6">
+        <aside className="w-full lg:w-64 shrink-0 bg-[#12151C] border border-zinc-800 rounded-lg p-4 space-y-5">
           <div className="pb-4 border-b border-zinc-800 space-y-1">
             <div className="text-sm font-semibold text-zinc-100 truncate">
               {user.displayName || user.email}
             </div>
             <div className="text-xs text-zinc-400 truncate">{user.email}</div>
             <div className="text-xs font-mono text-amber-400 pt-1">
-              Role: {userRole === 'creator' ? 'co-creator (95%)' : userRole.replace('_', ' ')}
+              {isAdmin
+                ? 'Super Admin'
+                : userRole === 'creator'
+                ? 'Co-Creator (95%)'
+                : userRole.replace('_', ' ')}
             </div>
           </div>
 
-          <nav className="space-y-1">
-            {navItems
-              .filter((n) => n.show)
-              .map((item) => {
+          {isAdmin ? (
+            <nav className="space-y-4" aria-label="Admin workspace navigation">
+              {navGroups.map((group) => (
+                <div key={group} className="space-y-1">
+                  <div className="px-3 text-[11px] font-medium text-zinc-500">
+                    {group}
+                  </div>
+                  {visibleNavItems
+                    .filter((item) => item.group === group)
+                    .map((item) => {
+                      const Icon = item.icon;
+                      const active = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setActiveTab(item.id)}
+                          className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                            active
+                              ? 'bg-amber-500 text-zinc-950 font-semibold'
+                              : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/60'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2.5 min-w-0">
+                            <Icon className="w-4 h-4 shrink-0" />
+                            <span className="truncate">{item.label}</span>
+                          </span>
+                          {item.badge !== undefined && (
+                            <span
+                              className={`text-[11px] font-mono tabular-nums shrink-0 ${
+                                active ? 'text-zinc-950/80' : 'text-zinc-500'
+                              }`}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                </div>
+              ))}
+            </nav>
+          ) : (
+            <nav className="space-y-1">
+              {visibleNavItems.map((item) => {
                 const Icon = item.icon;
                 const active = activeTab === item.id;
                 return (
@@ -2570,7 +2675,8 @@ export function StudioDashboard({
                   </button>
                 );
               })}
-          </nav>
+            </nav>
+          )}
 
           {/* Compact Theme Picker inside Portal */}
           <div className="pt-4 border-t border-zinc-800 space-y-2">
@@ -2632,6 +2738,35 @@ export function StudioDashboard({
 
         {/* Main Workspace */}
         <div className="flex-1 min-w-0 space-y-6 w-full">
+          {isAdmin && (
+            <div className="bg-[#12151C] border border-zinc-800 rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-zinc-400 min-w-0">
+                <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="text-zinc-300 font-medium whitespace-nowrap">Quality DJ Drops Worldwide Admin</span>
+                <span>/</span>
+                <span className="whitespace-nowrap hidden sm:inline">{activeNavMeta?.group}</span>
+                <span className="hidden sm:inline">/</span>
+                <span className="text-zinc-100 font-semibold truncate">{activeNavMeta?.label}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={onBackToStorefront}
+                  className="px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-zinc-100 bg-[#0B0D11] border border-zinc-800 rounded transition-colors whitespace-nowrap"
+                >
+                  View Storefront
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('settings')}
+                  className="px-2.5 py-1 text-xs font-medium text-amber-400 hover:text-amber-300 bg-[#0B0D11] border border-zinc-800 rounded transition-colors whitespace-nowrap"
+                >
+                  Gateway &amp; CMS
+                </button>
+              </div>
+            </div>
+          )}
+
           {statusNotice && (
             <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-md text-xs text-emerald-300 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -2645,7 +2780,28 @@ export function StudioDashboard({
           )}
 
           {/* OVERVIEW */}
-          {activeTab === 'overview' && (
+          {activeTab === 'overview' && isAdmin && (
+            <AdminDashboardOverview
+              orders={orders}
+              requests={requests}
+              payoutRequests={payoutRequests}
+              drops={drops}
+              licenses={licenses}
+              creatorProfiles={creatorProfiles}
+              creatorSales={creatorSales}
+              promoCodes={promoCodes}
+              userDirectory={userDirectory}
+              adminLogs={adminLogs}
+              storefrontConfig={storefrontConfig}
+              gatewaySettings={gatewaySettings}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              onSeedCatalog={handleSeedCatalogToFirestore}
+              onExportSnapshot={handleExportSystemSnapshot}
+              formatDate={formatPayoutDate}
+            />
+          )}
+
+          {activeTab === 'overview' && !isAdmin && (
             <div className="space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
@@ -2685,7 +2841,7 @@ export function StudioDashboard({
                 <div className="bg-[#12151C] border border-amber-500/30 rounded-lg p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="space-y-1">
                     <div className="text-sm font-semibold text-zinc-100">
-                      Want to sell your own DJ drops globally on DropVault?
+                      Want to sell your own DJ drops globally on Quality DJ Drops Worldwide 🌐?
                     </div>
                     <p className="text-xs text-zinc-400">
                       Sign up as a Co-Creator to publish your drops worldwide. You keep 95% of every successful sale (5% goes to Admin) and can withdraw globally anytime (7% Admin withdrawal fee).
@@ -3002,7 +3158,7 @@ export function StudioDashboard({
                     Co-Creator Marketplace Sign-Up
                   </h2>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    Launch your global DJ drop storefront on DropVault Audio and get paid in any country
+                    Launch your global DJ drop storefront on Quality DJ Drops Worldwide 🌐 and get paid in any country
                   </p>
                 </div>
 
@@ -3100,7 +3256,7 @@ export function StudioDashboard({
                       <span className="font-mono text-emerald-400">95% to You · 5% Admin</span>
                     </div>
                     <p className="text-zinc-400">
-                      Every time a buyer purchases one of your drops anywhere in the world, 5% goes to DropVault Admin and 95% is credited immediately to your creator balance.
+                      Every time a buyer purchases one of your drops anywhere in the world, 5% goes to Quality DJ Drops Worldwide Admin and 95% is credited immediately to your creator balance.
                     </p>
                   </div>
                   <div className="p-3.5 bg-[#0B0D11] border border-zinc-800 rounded-md space-y-1">
@@ -3117,7 +3273,7 @@ export function StudioDashboard({
                       Automated Tax &amp; Licensing Included
                     </div>
                     <p className="text-zinc-400">
-                      DropVault automatically handles VAT/GST across 550+ jurisdictions, generates serialized licenses, and hosts your 24-bit WAV masters.
+                      Quality DJ Drops Worldwide automatically handles VAT/GST across 550+ jurisdictions, generates serialized licenses, and hosts your 24-bit WAV masters.
                     </p>
                   </div>
                 </div>
@@ -3398,6 +3554,12 @@ export function StudioDashboard({
                                                 SEED
                                               </span>
                                             )}
+                                            <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-zinc-800 text-amber-300">
+                                              {item.voiceCategory ||
+                                                (`${item.voiceTalent} ${item.vocalStyle}`.toLowerCase().includes('female')
+                                                  ? 'Female voice'
+                                                  : 'Deep male voice')}
+                                            </span>
                                           </div>
                                           <div className="text-xs text-zinc-400">
                                             {item.voiceTalent} · {item.genre} · {item.bpm} BPM · Key{' '}
@@ -3740,7 +3902,7 @@ export function StudioDashboard({
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs text-zinc-400 mb-1">Creator / Talent</label>
                         <input
@@ -3754,12 +3916,27 @@ export function StudioDashboard({
                         />
                       </div>
                       <div>
+                        <label className="block text-xs text-zinc-400 mb-1">Voice Category Tag</label>
+                        <select
+                          value={prodVoiceCategory}
+                          onChange={(e) => setProdVoiceCategory(e.target.value as VoiceCategory)}
+                          className="w-full px-3 py-2 bg-[#0B0D11] border border-zinc-800 rounded-md text-xs text-zinc-100 focus:outline-none focus:border-amber-500"
+                        >
+                          <option value="Deep male voice">Deep male voice</option>
+                          <option value="Female voice">Female voice</option>
+                        </select>
+                      </div>
+                      <div>
                         <label className="block text-xs text-zinc-400 mb-1">Category / Genre</label>
                         <select
                           value={prodGenre}
                           onChange={(e) => setProdGenre(e.target.value)}
                           className="w-full px-3 py-2 bg-[#0B0D11] border border-zinc-800 rounded-md text-xs text-zinc-100 focus:outline-none focus:border-amber-500"
                         >
+                          <option>Club &amp; Street Mix</option>
+                          <option>Afrobeats &amp; Party</option>
+                          <option>Social &amp; Radio Promo</option>
+                          <option>Radio &amp; Promo Imaging</option>
                           <option>Afrobeats</option>
                           <option>Amapiano</option>
                           <option>House &amp; Techno</option>
@@ -3984,7 +4161,7 @@ export function StudioDashboard({
                         maxLength={300}
                         value={prodCoverImage}
                         onChange={(e) => setProdCoverImage(e.target.value)}
-                        placeholder="/api/media/preview/... or /src/assets/images/..."
+                        placeholder="/api/media/preview/... or /assets/aistudio/..."
                         className="w-full px-3 py-1.5 bg-[#0B0D11] border border-zinc-800 rounded-md text-[11px] font-mono text-zinc-300 focus:outline-none focus:border-amber-500"
                       />
                     </div>
@@ -4123,7 +4300,7 @@ export function StudioDashboard({
                       </thead>
                       <tbody className="divide-y divide-zinc-800/70">
                         {filteredOrders.map((order) => {
-                          const firstAsset = order.items[0]?.audioFileId || 'synth-kampala-ignition';
+                          const firstAsset = order.items[0]?.audioFileId || 'seed-rasco-street-mix-king';
                           const linkedLic = licenses.find((l) => l.id === order.licenseId);
                           const isRefunded = order.paymentStatus === 'refunded';
 
@@ -5480,7 +5657,7 @@ export function StudioDashboard({
                             maxLength={80}
                             value={tplBrandName}
                             onChange={(e) => setTplBrandName(e.target.value)}
-                            placeholder="DropVault Audio"
+                            placeholder="Quality DJ Drops Worldwide 🌐"
                             className="w-full px-3 py-2 bg-[#0B0D11] border border-zinc-800 rounded-md text-sm text-zinc-100 focus:outline-none focus:border-amber-500"
                           />
                         </div>
@@ -5507,7 +5684,7 @@ export function StudioDashboard({
                             maxLength={80}
                             value={tplSenderName}
                             onChange={(e) => setTplSenderName(e.target.value)}
-                            placeholder="DropVault Audio Studio"
+                            placeholder="Quality DJ Drops Worldwide Studio"
                             className="w-full px-3 py-2 bg-[#0B0D11] border border-zinc-800 rounded-md text-sm text-zinc-100 focus:outline-none focus:border-amber-500"
                           />
                         </div>
@@ -5560,7 +5737,7 @@ export function StudioDashboard({
                             maxLength={300}
                             value={tplLogoUrl}
                             onChange={(e) => setTplLogoUrl(e.target.value)}
-                            placeholder="https://... or /src/assets/images/..."
+                            placeholder="https://... or /assets/aistudio/..."
                             className="w-full px-3 py-2 bg-[#0B0D11] border border-zinc-800 rounded-md text-xs text-zinc-100 focus:outline-none focus:border-amber-500"
                           />
                         </div>
@@ -5806,7 +5983,7 @@ export function StudioDashboard({
                             type="email"
                             value={testTemplateEmail}
                             onChange={(e) => setTestTemplateEmail(e.target.value)}
-                            placeholder={user?.email || 'admin@dropvault.audio'}
+                            placeholder={user?.email || 'admin@qualitydjdrops.com'}
                             className="flex-1 min-w-0 px-3 py-2 bg-[#0B0D11] border border-zinc-800 rounded-md text-xs text-zinc-100 focus:outline-none focus:border-amber-500"
                           />
                           <button
@@ -6265,7 +6442,7 @@ export function StudioDashboard({
                             <tr key={u.uid} className="hover:bg-zinc-800/30 transition-colors">
                               <td className="px-4 py-3">
                                 <div className="text-zinc-100 font-medium flex items-center gap-2">
-                                  <span>{u.displayName || 'DropVault User'}</span>
+                                  <span>{u.displayName || 'Studio User'}</span>
                                   {isBootstrapped && (
                                     <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                       FOUNDER
