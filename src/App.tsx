@@ -44,6 +44,7 @@ import {
   MediaPreviewModal,
   PreviewTarget,
 } from './components/MediaPreviewModal';
+import { OnlineAssistanceSection } from './components/OnlineAssistanceSection';
 import { ProductReviewsModal } from './components/ProductReviewsModal';
 import { StudioDashboard } from './components/StudioDashboard';
 import { INITIAL_DROPS, LICENSE_TIERS } from './data/catalogSeed';
@@ -136,6 +137,7 @@ function MainApp() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingAudio, setPlayingAudio] = useState<{ id: string; title: string } | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [supportWidgetOpen, setSupportWidgetOpen] = useState(false);
 
   // Workspace Collections State
   const [orders, setOrders] = useState<OrderRecord[]>([]);
@@ -1423,6 +1425,14 @@ function MainApp() {
               onRequestCreated={() => setView('portal')}
               onRequestSignIn={() => openAuthModal('signin')}
             />
+
+            {/* Online Assistance & Studio Help Center */}
+            <OnlineAssistanceSection
+              onOpenLiveChat={() => setSupportWidgetOpen(true)}
+              onOpenPortal={() => setView('portal')}
+              onOpenAuth={() => openAuthModal('signin')}
+              isSignedIn={Boolean(user)}
+            />
           </>
         )}
       </main>
@@ -1480,6 +1490,13 @@ function MainApp() {
               <MessageCircle className="w-3.5 h-3.5" />
               WhatsApp: +256 784 903 051
             </a>
+            <button
+              type="button"
+              onClick={() => scrollToSection('online-assistance')}
+              className="hover:text-amber-400 transition-colors"
+            >
+              Online Assistance
+            </button>
             <button
               type="button"
               onClick={() => setView('portal')}
@@ -1557,6 +1574,9 @@ function MainApp() {
         catalogDrops={catalogDrops}
         reviews={reviews}
         hasAudioPlayerBar={Boolean(playingAudio)}
+        open={supportWidgetOpen}
+        onOpenChange={setSupportWidgetOpen}
+        onOpenPortal={() => setView('portal')}
       />
     </div>
   );

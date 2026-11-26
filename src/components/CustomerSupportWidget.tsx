@@ -1,9 +1,12 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
+  FolderCheck,
+  Headphones,
   Loader2,
   Mail,
   MessageCircle,
+  PhoneCall,
   RotateCcw,
   Send,
   Sparkles,
@@ -15,6 +18,9 @@ interface CustomerSupportWidgetProps {
   catalogDrops: DropProduct[];
   reviews: ProductReview[];
   hasAudioPlayerBar?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onOpenPortal?: () => void;
 }
 
 const STARTER_QUESTIONS = [
@@ -28,15 +34,25 @@ export function CustomerSupportWidget({
   catalogDrops,
   reviews,
   hasAudioPlayerBar = false,
+  open: controlledOpen,
+  onOpenChange,
+  onOpenPortal,
 }: CustomerSupportWidgetProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = (next: boolean) => {
+    if (controlledOpen === undefined) {
+      setInternalOpen(next);
+    }
+    onOpenChange?.(next);
+  };
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [messages, setMessages] = useState<SupportChatMessage[]>([
     {
       role: 'model',
-      text: 'Welcome to Quality DJ Drops Worldwide 🌐 Support! Ask me about DJ drop recommendations, licensing tiers, VAT/GST tax compliance, local payment methods, or custom drop milestones.',
+      text: 'Welcome to Quality DJ Drops Worldwide 🌐 Online Assistance! Ask me about DJ drop recommendations, licensing tiers, VAT/GST tax compliance, local payment methods, or custom drop milestones — or use WhatsApp, Call, or Email above for human support.',
     },
   ]);
   const scrollEndRef = useRef<HTMLDivElement | null>(null);
@@ -161,7 +177,7 @@ export function CustomerSupportWidget({
                   Quality DJ Drops Support Concierge
                 </div>
                 <div className="text-[11px] text-zinc-400 truncate">
-                  Licensing, pricing, tax &amp; catalog help
+                  Live AI chat + WhatsApp, Phone &amp; Email help
                 </div>
               </div>
             </div>
@@ -184,6 +200,44 @@ export function CustomerSupportWidget({
                 <X className="w-4 h-4" />
               </button>
             </div>
+          </div>
+
+          {/* Direct Online Assistance Channels Bar */}
+          <div className="px-3 py-2 bg-[#0E1117] border-b border-zinc-800 grid grid-cols-4 gap-1.5">
+            <a
+              href="https://wa.me/256784903051?text=Hello%20Quality%20DJ%20Drops%20Worldwide%2C%20I%20need%20online%20assistance."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="py-1.5 px-2 bg-[#12151C] hover:border-emerald-500 border border-zinc-800 rounded text-[11px] font-medium text-emerald-400 flex items-center justify-center gap-1 transition-colors"
+            >
+              <MessageCircle className="w-3 h-3 shrink-0" />
+              <span>WhatsApp</span>
+            </a>
+            <a
+              href="tel:+256784903051"
+              className="py-1.5 px-2 bg-[#12151C] hover:border-emerald-500 border border-zinc-800 rounded text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors"
+            >
+              <PhoneCall className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span>Call</span>
+            </a>
+            <a
+              href="mailto:opioisaac21062002@gmail.com?subject=Quality%20DJ%20Drops%20Online%20Assistance"
+              className="py-1.5 px-2 bg-[#12151C] hover:border-amber-500 border border-zinc-800 rounded text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors"
+            >
+              <Mail className="w-3 h-3 text-amber-400 shrink-0" />
+              <span>Email</span>
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onOpenPortal?.();
+              }}
+              className="py-1.5 px-2 bg-[#12151C] hover:border-amber-500 border border-zinc-800 rounded text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors"
+            >
+              <FolderCheck className="w-3 h-3 text-amber-400 shrink-0" />
+              <span>Orders</span>
+            </button>
           </div>
 
           {/* Messages */}
@@ -289,10 +343,10 @@ export function CustomerSupportWidget({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold text-xs rounded-md shadow-lg border border-amber-400/50 transition-colors"
+          className="inline-flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold text-xs rounded-md shadow-lg border border-amber-400/50 transition-colors"
         >
-          <Bot className="w-4 h-4" />
-          <span>AI Support</span>
+          <Headphones className="w-4 h-4" />
+          <span>Online Help</span>
         </button>
       )}
     </div>
