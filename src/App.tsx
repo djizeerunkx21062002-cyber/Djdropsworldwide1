@@ -1117,7 +1117,7 @@ function MainApp() {
                     return (
                       <article
                         key={drop.id}
-                        className="bg-[#12151C] border border-zinc-800 rounded-lg overflow-hidden flex flex-col hover:border-amber-500 transition-colors shadow-lg"
+                        className="group bg-[#12151C] border border-zinc-800 rounded-lg overflow-hidden flex flex-col shadow-lg transition-all duration-300 ease-out hover:border-amber-500 motion-safe:hover:-translate-y-1 hover:shadow-[0_18px_38px_-12px_rgba(245,158,11,0.22),0_12px_24px_-8px_rgba(0,0,0,0.65)]"
                       >
                         <div className="relative aspect-square bg-zinc-900 overflow-hidden">
                           {mediaType === 'video' ? (
@@ -1127,14 +1127,14 @@ function MainApp() {
                               muted
                               playsInline
                               preload="metadata"
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover transition-transform duration-300 ease-out motion-safe:group-hover:scale-[1.02]"
                             />
                           ) : (
                             <img
                               src={drop.coverImage}
                               alt={drop.title}
                               referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover transition-transform duration-300 ease-out motion-safe:group-hover:scale-[1.02]"
                             />
                           )}
 
